@@ -1,0 +1,58 @@
+#!/bin/bash
+# AI Token Usage - Daily Run Script
+# This script is meant to be run by cron daily
+
+set -e
+
+# Configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(dirname "$SCRIPT_DIR")"
+LOG_DIR="$BASE_DIR/logs"
+LOG_FILE="$LOG_DIR/daily_run.log"
+
+# Create log directory if needed
+mkdir -p "$LOG_DIR"
+
+# Load environment variables if exists
+if [ -f "$BASE_DIR/.env" ]; then
+    export $(cat "$BASE_DIR/.env" | grep -v '^#' | xargs)
+fi
+
+# Log function
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
+log "Starting daily token usage collection"
+
+# Initialize database
+python3 "$BASE_DIR/scripts/shared/db.py" 2>&1 | tee -a "$LOG_FILE"
+
+# Fetch OpenClaw data
+log "Fetching OpenClaw data..."
+if [ -n "$OPENCLAW_TOKEN" ]; then
+    python3 "$BASE_DIR/scripts/fetch_openclaw.py" --days 7 2>&1 | tee -a "$LOG_FILE"
+else
+    log "SKIP: OPENCLAW_TOKEN not set"
+fi
+
+# Fetch Claude data
+log "Fetching Claude data..."
+python3 "$BASE_DIR/scripts/fetch_claude.py" --days 7 2>&1 | tee -a "$LOG_FILE"
+
+# Fetch Qwen data
+log "Fetching Qwen data..."
+python3 "$BASE_DIR/scripts/fetch_qwen.py" --days 7 2>&1 | tee -a "$LOG_FILE"
+
+# Send email report if configured
+if [ -n "$EMAIL_TO" ]; then
+    log "Sending email report to $EMAIL_TO..."
+    python3 "$BASE_DIR/cli.py" report email 2>&1 | tee -a "$LOG_FILE"
+fi
+
+log "Daily collection completed"
+
+# Print summary
+echo ""
+echo "=== Daily Summary ==="
+python3 "$BASE_DIR/cli.py" summary 2>&1 | tee -a "$LOG_FILE"
