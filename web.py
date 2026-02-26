@@ -7,17 +7,26 @@ A web interface for visualizing AI token usage data from OpenClaw, Claude, and Q
 
 import os
 import sys
+import importlib.util
 import json
 from datetime import datetime, timedelta
 from flask import Flask, render_template, jsonify, request, send_from_directory
 
-# Add shared directory to path
+# Dynamically load shared modules
 script_dir = os.path.dirname(os.path.abspath(__file__))
 shared_dir = os.path.join(script_dir, 'scripts', 'shared')
-if shared_dir not in sys.path:
-    sys.path.insert(0, shared_dir)
 
-from shared import db, utils
+# Load db module
+db_path = os.path.join(shared_dir, 'db.py')
+spec_db = importlib.util.spec_from_file_location('db', db_path)
+db = importlib.util.module_from_spec(spec_db)
+spec_db.loader.exec_module(db)
+
+# Load utils module
+utils_path = os.path.join(shared_dir, 'utils.py')
+spec_utils = importlib.util.spec_from_file_location('utils', utils_path)
+utils = importlib.util.module_from_spec(spec_utils)
+spec_utils.loader.exec_module(utils)
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
@@ -82,4 +91,4 @@ if __name__ == '__main__':
     db.init_database()
 
     # Run the Flask app
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=True)
