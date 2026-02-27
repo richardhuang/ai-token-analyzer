@@ -62,6 +62,9 @@
     </div>
 
     <script>
+        // Store summary data for reuse to avoid duplicate API calls
+        let summaryDataForChart = null;
+
         // Color palette for each tool (consistent across all charts)
         const toolColors = {
             'openclaw': { border: 'rgba(255, 99, 132, 1)', background: 'rgba(255, 99, 132, 0.2)', card: 'bg-danger' },
@@ -94,6 +97,7 @@
                                     <h6 class="card-subtitle mb-2 text-white-50">${item.tool_name.toUpperCase()}</h6>
                                     <h3 class="card-title">${formatTokens(item.tokens_used)}</h3>
                                     <p class="card-text mb-1">Date: ${item.date}</p>
+                                    ${item.request_count > 0 ? `<p class="card-text">Requests: ${item.request_count}</p>` : ''}
                                     ${item.input_tokens > 0 ? `<p class="card-text">Input: ${formatTokens(item.input_tokens)}</p>` : ''}
                                     ${item.output_tokens > 0 ? `<p class="card-text">Output: ${formatTokens(item.output_tokens)}</p>` : ''}
                                 </div>
@@ -118,18 +122,21 @@
 
             const container = document.getElementById('totalChart');
             try {
-                const response = await fetch('/api/summary');
-                const data = await response.json();
+                // Use cached summary data if available
+                if (summaryDataForChart === null) {
+                    const response = await fetch('/api/summary');
+                    summaryDataForChart = await response.json();
+                }
 
-                if (Object.keys(data).length === 0) {
+                if (Object.keys(summaryDataForChart).length === 0) {
                     container.parentElement.innerHTML = '<p class="text-center text-muted">No data available</p>';
                     return;
                 }
 
                 const ctx = document.getElementById('totalChart').getContext('2d');
 
-                const labels = Object.keys(data);
-                const dataValues = Object.values(data).map(item => item.total_tokens);
+                const labels = Object.keys(summaryDataForChart);
+                const dataValues = Object.values(summaryDataForChart).map(item => item.total_tokens);
 
                 // Color palette for each tool
                 const backgroundColors = labels.map(tool => {
@@ -167,6 +174,15 @@
                                             label += formatTokens(context.parsed);
                                         }
                                         return label + ' tokens';
+                                    },
+                                    afterBody: function(context) {
+                                        // Show request count if available in data
+                                        const toolName = context[0].label.toLowerCase();
+                                        const stats = summaryDataForChart[toolName];
+                                        if (stats && stats.total_requests) {
+                                            return 'Requests: ' + stats.total_requests;
+                                        }
+                                        return '';
                                     }
                                 }
                             }
@@ -186,8 +202,15 @@
             // Clear loading text first
             container.innerHTML = '';
             try {
-                const response = await fetch('/api/summary');
-                const data = await response.json();
+                // Use cached summary data if available
+                let data;
+                if (summaryDataForChart === null) {
+                    const response = await fetch('/api/summary');
+                    data = await response.json();
+                    summaryDataForChart = data;
+                } else {
+                    data = summaryDataForChart;
+                }
 
                 if (Object.keys(data).length === 0) {
                     container.innerHTML = '<div class="col-12 text-center">No data available</div>';
@@ -207,6 +230,7 @@
                                         <strong>${formatTokens(stats.total_tokens)}</strong> total<br>
                                         ${stats.days_count} days tracked<br>
                                         Avg: ${formatTokens(stats.avg_tokens)}/day
+                                        ${stats.total_requests ? `<br>Requests: ${stats.total_requests}${stats.avg_requests ? ' (avg ' + Math.round(stats.avg_requests) + '/day)' : ''}` : ''}
                                     </p>
                                     <small>Date range: ${stats.first_date} to ${stats.last_date}</small>
                                 </div>

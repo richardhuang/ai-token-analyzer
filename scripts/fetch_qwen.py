@@ -51,10 +51,12 @@ def extract_tokens_from_entry(entry: dict) -> dict:
         "cached_tokens": 0,
         "total_tokens": 0,
         "model": None,
+        "is_assistant_message": False,
     }
 
     if entry.get("type") == "assistant":
         result["model"] = entry.get("model")
+        result["is_assistant_message"] = True
 
     usage = entry.get("usageMetadata", {})
     if isinstance(usage, dict):
@@ -75,6 +77,7 @@ def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
         "thoughts_tokens": 0,
         "cached_tokens": 0,
         "total_tokens": 0,
+        "request_count": 0,
         "models_used": set(),
     })
 
@@ -96,6 +99,9 @@ def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
                 tokens = extract_tokens_from_entry(entry)
 
                 if tokens["total_tokens"] == 0:
+                    # Still count requests even if tokens are 0 (e.g., cache hits)
+                    if tokens["is_assistant_message"]:
+                        daily[date_key]["request_count"] += 1
                     continue
 
                 daily[date_key]["prompt_tokens"] += tokens["prompt_tokens"]
@@ -103,6 +109,9 @@ def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
                 daily[date_key]["thoughts_tokens"] += tokens["thoughts_tokens"]
                 daily[date_key]["cached_tokens"] += tokens["cached_tokens"]
                 daily[date_key]["total_tokens"] += tokens["total_tokens"]
+
+                if tokens["is_assistant_message"]:
+                    daily[date_key]["request_count"] += 1
 
                 if tokens["model"]:
                     daily[date_key]["models_used"].add(tokens["model"])
@@ -115,14 +124,56 @@ def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
 
 def find_qwen_project_dir() -> Optional[Path]:
     """Find the Qwen project directory."""
-    project_dirs = [
-        Path.home() / ".qwen" / "projects" / "-Users-rhuang-workspace" / "chats",
-        Path.home() / ".qwen" / "projects",
+    home = Path.home()
+
+    # Check standard locations
+    potential_dirs = [
+        home / ".qwen" / "projects",
     ]
 
-    for d in project_dirs:
-        if d.is_dir():
-            return d
+    for projects_dir in potential_dirs:
+        if not projects_dir.is_dir():
+            continue
+
+        # First check for 'chats' subdirectory (common Qwen structure)
+        chats_dir = projects_dir / "chats"
+        if chats_dir.is_dir():
+            jsonl_files = list(chats_dir.glob("*.jsonl"))
+            if jsonl_files:
+                return chats_dir
+
+        # If no .jsonl files in root, look in subdirectories
+        subdirs = [d for d in projects_dir.iterdir() if d.is_dir()]
+
+        # Look for subdirectories that contain .jsonl files (at level 1 or level 2)
+        subdirs_with_jsonl = []
+        for d in subdirs:
+            # Check direct children
+            direct_jsonl = list(d.glob("*.jsonl"))
+            if direct_jsonl:
+                subdirs_with_jsonl.append((d, direct_jsonl))
+                continue
+            # Check 'chats' subdirectory within this dir
+            chats_subdir = d / "chats"
+            if chats_subdir.is_dir():
+                jsonl_files = list(chats_subdir.glob("*.jsonl"))
+                if jsonl_files:
+                    subdirs_with_jsonl.append((chats_subdir, jsonl_files))
+
+        if len(subdirs_with_jsonl) == 1:
+            # If only one subdirectory has .jsonl files, use it
+            return subdirs_with_jsonl[0][0]
+        elif len(subdirs_with_jsonl) > 1:
+            # Multiple subdirectories with .jsonl files
+            # Prioritize workspace-related directories, then chats
+            for subdir, _ in subdirs_with_jsonl:
+                if "workspace" in subdir.name.lower():
+                    return subdir
+            for subdir, _ in subdirs_with_jsonl:
+                if "chats" in subdir.name.lower():
+                    return subdir
+            # If no workspace/chats dir, return the first one
+            return subdirs_with_jsonl[0][0]
 
     return None
 
@@ -157,13 +208,14 @@ def fetch_and_save(days: int = 7, project_dir: Optional[Path] = None) -> bool:
         "thoughts_tokens": 0,
         "cached_tokens": 0,
         "total_tokens": 0,
+        "request_count": 0,
         "models_used": set(),
     })
 
     for f in jsonl_files:
         daily = process_jsonl_file(f)
         for date, stats in daily.items():
-            for key in ["prompt_tokens", "candidates_tokens", "thoughts_tokens", "cached_tokens", "total_tokens"]:
+            for key in ["prompt_tokens", "candidates_tokens", "thoughts_tokens", "cached_tokens", "total_tokens", "request_count"]:
                 aggregated[date][key] += stats[key]
             aggregated[date]["models_used"].update(stats["models_used"])
 
@@ -183,10 +235,11 @@ def fetch_and_save(days: int = 7, project_dir: Optional[Path] = None) -> bool:
                 input_tokens=stats["prompt_tokens"],
                 output_tokens=stats["candidates_tokens"],
                 cache_tokens=stats["cached_tokens"],
+                request_count=stats["request_count"],
                 models_used=sorted(stats["models_used"])
             ):
                 saved += 1
-            print(f"  {date}: {total:,} tokens")
+            print(f"  {date}: {total:,} tokens, {stats['request_count']} requests")
 
     print(f"\nSaved {saved} days of Qwen usage data")
     return True

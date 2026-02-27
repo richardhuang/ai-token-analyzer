@@ -26,7 +26,7 @@ PARENT_DIR = os.path.dirname(SCRIPT_DIR)
 if PARENT_DIR not in sys.path:
     sys.path.insert(0, PARENT_DIR)
 
-from shared import db
+from shared import db, utils
 
 
 async def get_openclaw_usage(
@@ -160,50 +160,98 @@ def parse_usage_response(response: dict) -> Dict[str, int]:
     result = response.get("payload", {})
 
     daily_usage = {}
+    daily_requests = {}
     daily_array = result.get("daily", [])
 
     for day_entry in daily_array:
         if isinstance(day_entry, dict):
             date = day_entry.get("date")
             tokens = day_entry.get("tokens") or day_entry.get("totalTokens")
+            # Also check for request count if available
+            requests = day_entry.get("requests") or day_entry.get("requestCount") or day_entry.get("totalRequests")
             if date and tokens is not None:
                 daily_usage[date] = int(tokens)
+                if requests is not None:
+                    daily_requests[date] = int(requests)
 
-    return daily_usage
+    # If we have request counts, return as a dict with both tokens and requests
+    if daily_requests:
+        return {"tokens": daily_usage, "requests": daily_requests}
+
+    return {"tokens": daily_usage, "requests": {}}
 
 
 async def fetch_and_save(
-    token_env: str = "OPENCLAW_TOKEN",
-    gateway_url: str = "http://127.0.0.1:18789",
-    days: int = 7
+    days: int = 7,
+    gateway_url: str = None,
+    token: str = None
 ) -> bool:
     """
     Fetch OpenClaw usage and save to database.
 
     Args:
-        token_env: Environment variable name for the token
-        gateway_url: OpenClaw gateway URL
         days: Number of days to fetch
+        gateway_url: OpenClaw gateway URL (reads from config.json if not provided)
+        token: OpenClaw token (reads from config.json if not provided)
 
     Returns:
         True if successful, False otherwise
     """
-    token = os.getenv(token_env)
+    # Try to load config.json for defaults
+    if gateway_url is None or token is None:
+        config = utils.load_config()
+        openclaw_config = config.get('tools', {}).get('openclaw', {})
+
+        if gateway_url is None:
+            gateway_url = openclaw_config.get('gateway_url', 'http://127.0.0.1:18789')
+
+        if token is None:
+            # token_env can be either an environment variable name or the actual token
+            token_env = openclaw_config.get('token_env', 'OPENCLAW_TOKEN')
+            # First try as environment variable
+            token = os.getenv(token_env)
+            # If not found and starts with Config, treat as direct token value
+            if not token:
+                # Check if it looks like an environment variable reference
+                if token_env.startswith('${') or token_env.startswith('$'):
+                    # It's trying to reference an env var that doesn't exist
+                    print(f"Error: Environment variable '{token_env}' not found")
+                    print("Please set the environment variable or update config.json with the token directly")
+                    return False
+                else:
+                    # It's the actual token value (not a variable name)
+                    token = token_env
+
     if not token:
-        print(f"Error: {token_env} not set")
+        print("Error: OpenClaw token not provided")
+        print("Please set OPENCLAW_TOKEN environment variable or configure token_env in config.json")
         return False
 
     result = await get_openclaw_usage(gateway_url, token, days)
 
     if result:
         saved = 0
-        for date, tokens in result.items():
+        # Handle both old format (just tokens dict) and new format (tokens + requests)
+        if isinstance(result, dict) and "tokens" in result:
+            tokens_result = result["tokens"]
+            requests_result = result.get("requests", {})
+        else:
+            tokens_result = result
+            requests_result = {}
+
+        for date, tokens in tokens_result.items():
+            request_count = requests_result.get(date, 0)
             if db.save_usage(
                 date=date,
                 tool_name="openclaw",
-                tokens_used=tokens
+                tokens_used=tokens,
+                request_count=request_count
             ):
                 saved += 1
+                if request_count > 0:
+                    print(f"  {date}: {tokens:,} tokens, {request_count} requests")
+                else:
+                    print(f"  {date}: {tokens:,} tokens")
 
         print(f"\nSaved {saved} days of OpenClaw usage data")
         return True
@@ -216,17 +264,14 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Fetch OpenClaw token usage')
     parser.add_argument('--days', type=int, default=7, help='Number of days')
-    parser.add_argument('--url', default='http://127.0.0.1:18789', help='Gateway URL')
-    parser.add_argument('--token', help='OpenClaw token (overrides env)')
+    parser.add_argument('--url', default=None, help='Gateway URL (reads from config.json if not provided)')
+    parser.add_argument('--token', default=None, help='OpenClaw token (reads from config.json if not provided)')
     args = parser.parse_args()
-
-    if args.token:
-        os.environ['OPENCLAW_TOKEN'] = args.token
 
     # Initialize database
     db.init_database()
 
     # Run the fetcher
-    success = asyncio.run(fetch_and_save(days=args.days, gateway_url=args.url))
+    success = asyncio.run(fetch_and_save(days=args.days, gateway_url=args.url, token=args.token))
 
     sys.exit(0 if success else 1)

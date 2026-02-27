@@ -1,0 +1,48 @@
+[2026-02-27 00:30:00] Starting daily token usage collection
+[2026-02-27 00:30:00] Initializing database...
+[2026-02-27 00:30:01] Fetching OpenClaw data...
+[2026-02-27 00:30:01] SKIP: OPENCLAW_TOKEN not set
+[2026-02-27 00:30:01] Fetching Claude data...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+  2026-02-25: 10,287,701 tokens
+  2026-02-26: 72,921,576 tokens
+  2026-02-24: 2,466,174 tokens
+  2026-02-23: 20,448,492 tokens
+
+Saved 4 days of Claude usage data
+[2026-02-27 00:30:01] Fetching Qwen data...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+  2026-02-25: 1,533,768 tokens
+  2026-02-22: 266,235 tokens
+  2026-02-23: 50,853,911 tokens
+  2026-02-24: 318,340 tokens
+
+Saved 4 days of Qwen usage data
+[2026-02-27 00:30:01] Sending email report...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+Email sent successfully to rh@ivyent.cn
+Report sent to rh@ivyent.cn
+[2026-02-27 00:30:07] Daily collection completed
+
+=== Daily Summary ===
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+AI Token Usage Summary
+============================================================
+
+OPENCLAW
+  Days tracked:   7
+  Total tokens:   114.22M (114,224,574)
+  Average/day:    16.32M (16,317,796)
+  Date range:     2026-02-20 to 2026-02-26
+
+CLAUDE
+  Days tracked:   4
+  Total tokens:   106.12M (106,123,943)
+  Average/day:    26.53M (26,530,985)
+  Date range:     2026-02-23 to 2026-02-26
+
+QWEN
+  Days tracked:   4
+  Total tokens:   52.97M (52,972,254)
+  Average/day:    13.24M (13,243,063)
+  Date range:     2026-02-22 to 2026-02-25

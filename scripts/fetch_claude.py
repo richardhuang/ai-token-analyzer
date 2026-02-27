@@ -50,12 +50,14 @@ def extract_tokens_from_entry(entry: dict) -> dict:
         "cache_read_tokens": 0,
         "cache_creation_tokens": 0,
         "model": None,
+        "is_assistant_message": False,
     }
 
     if entry.get("type") == "assistant":
         msg = entry.get("message", {})
         if isinstance(msg, dict):
             result["model"] = msg.get("model")
+            result["is_assistant_message"] = True
 
     usage = None
     if "usage" in entry:
@@ -81,6 +83,7 @@ def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
         "output_tokens": 0,
         "cache_read_tokens": 0,
         "cache_creation_tokens": 0,
+        "request_count": 0,
         "models_used": set(),
     })
 
@@ -107,12 +110,18 @@ def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
                     tokens["cache_read_tokens"],
                     tokens["cache_creation_tokens"],
                 ]) == 0:
+                    # Still count requests even if tokens are 0 (e.g., cache hits)
+                    if tokens["is_assistant_message"]:
+                        daily[date_key]["request_count"] += 1
                     continue
 
                 daily[date_key]["input_tokens"] += tokens["input_tokens"]
                 daily[date_key]["output_tokens"] += tokens["output_tokens"]
                 daily[date_key]["cache_read_tokens"] += tokens["cache_read_tokens"]
                 daily[date_key]["cache_creation_tokens"] += tokens["cache_creation_tokens"]
+
+                if tokens["is_assistant_message"]:
+                    daily[date_key]["request_count"] += 1
 
                 if tokens["model"]:
                     daily[date_key]["models_used"].add(tokens["model"])
@@ -125,14 +134,36 @@ def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
 
 def find_claude_project_dir() -> Optional[Path]:
     """Find the Claude project directory."""
-    project_dirs = [
-        Path.home() / ".claude" / "projects" / "-Users-rhuang-workspace",
-        Path.home() / ".config" / "claude" / "projects",
+    home = Path.home()
+
+    # Check standard locations
+    potential_dirs = [
+        home / ".claude" / "projects",
+        home / ".config" / "claude" / "projects",
     ]
 
-    for d in project_dirs:
-        if d.is_dir():
-            return d
+    for projects_dir in potential_dirs:
+        if not projects_dir.is_dir():
+            continue
+
+        # Find all .jsonl files directly in the projects directory
+        jsonl_files = list(projects_dir.glob("*.jsonl"))
+        if jsonl_files:
+            return projects_dir
+
+        # If no .jsonl files in root, look in subdirectories
+        subdirs = [d for d in projects_dir.iterdir() if d.is_dir() and list(d.glob("*.jsonl"))]
+        if len(subdirs) == 1:
+            # If only one subdirectory has .jsonl files, use it
+            return subdirs[0]
+        elif len(subdirs) > 1:
+            # Multiple subdirectories with .jsonl files
+            # Prioritize workspace-related directories
+            for subdir in subdirs:
+                if "workspace" in subdir.name.lower():
+                    return subdir
+            # If no workspace dir, return the first one
+            return subdirs[0]
 
     return None
 
@@ -173,13 +204,14 @@ def fetch_and_save(days: int = 7, project_dir: Optional[Path] = None) -> bool:
         "output_tokens": 0,
         "cache_read_tokens": 0,
         "cache_creation_tokens": 0,
+        "request_count": 0,
         "models_used": set(),
     })
 
     for f in jsonl_files:
         daily = process_jsonl_file(f)
         for date, stats in daily.items():
-            for key in ["input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens"]:
+            for key in ["input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens", "request_count"]:
                 aggregated[date][key] += stats[key]
             aggregated[date]["models_used"].update(stats["models_used"])
 
@@ -204,10 +236,11 @@ def fetch_and_save(days: int = 7, project_dir: Optional[Path] = None) -> bool:
                 input_tokens=stats["input_tokens"],
                 output_tokens=stats["output_tokens"],
                 cache_tokens=stats["cache_read_tokens"] + stats["cache_creation_tokens"],
+                request_count=stats["request_count"],
                 models_used=sorted(stats["models_used"])
             ):
                 saved += 1
-            print(f"  {date}: {total:,} tokens")
+            print(f"  {date}: {total:,} tokens, {stats['request_count']} requests")
 
     print(f"\nSaved {saved} days of Claude usage data")
     return True

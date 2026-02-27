@@ -138,10 +138,15 @@ def format_report_email(
                 <td class="tool-data">"""
             for entry in tool_entries:
                 tokens = format_tokens(entry['tokens_used'])
+                request_count = entry.get('request_count', 0)
                 daily_tables += f"""
                 <div class="daily-entry">
                     <span class="date">{entry['date']}</span>
-                    <span class="tokens">{tokens}</span>
+                    <span class="tokens">{tokens}</span>"""
+                if request_count > 0:
+                    daily_tables += f"""
+                    <span class="requests">{request_count} req</span>"""
+                daily_tables += """
                 </div>"""
             daily_tables += """
                 </td>
@@ -160,7 +165,11 @@ def format_report_email(
                 <td class="summary-tool">{tool.upper()}</td>
                 <td class="summary-days">{stats['days_count']} days</td>
                 <td class="summary-tokens">{format_tokens(stats['total_tokens'])}</td>
-                <td class="summary-avg">{format_tokens(int(stats['avg_tokens']))}/day</td>
+                <td class="summary-avg">{format_tokens(int(stats['avg_tokens']))}/day</td>"""
+        if stats.get('total_requests'):
+            summary_rows += f"""
+                <td class="summary-requests">{stats['total_requests']:,} total</td>"""
+        summary_rows += """
             </tr>"""
 
     html = f"""<!DOCTYPE html>
@@ -250,6 +259,12 @@ def format_report_email(
             font-weight: 600;
             color: #333;
         }}
+        .requests {{
+            font-size: 11px;
+            color: #667eea;
+            font-weight: 600;
+            margin-left: 8px;
+        }}
         .summary-tool {{
             font-weight: 600;
             color: #333;
@@ -266,6 +281,11 @@ def format_report_email(
         .summary-avg {{
             color: #999;
             text-align: right;
+        }}
+        .summary-requests {{
+            color: #667eea;
+            text-align: right;
+            font-weight: 600;
         }}
         .no-data {{
             text-align: center;
@@ -317,6 +337,7 @@ def format_report_email(
                         <th style="text-align: center; padding: 10px 15px; color: #666; font-weight: 500;">Days</th>
                         <th style="text-align: right; padding: 10px 15px; color: #666; font-weight: 500;">Total</th>
                         <th style="text-align: right; padding: 10px 15px; color: #666; font-weight: 500;">Avg/Day</th>
+                        <th style="text-align: right; padding: 10px 15px; color: #666; font-weight: 500;">Requests</th>
                     </tr>
                     {summary_rows}
                 </table>

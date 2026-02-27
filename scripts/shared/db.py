@@ -45,11 +45,20 @@ def init_database() -> None:
             input_tokens INTEGER DEFAULT 0,
             output_tokens INTEGER DEFAULT 0,
             cache_tokens INTEGER DEFAULT 0,
+            request_count INTEGER DEFAULT 0,
             models_used TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(date, tool_name)
         )
     ''')
+
+    # Check if request_count column exists, add it if not (for old databases)
+    cursor.execute("PRAGMA table_info(daily_usage)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'request_count' not in columns:
+        print("Adding request_count column to existing database...")
+        cursor.execute("ALTER TABLE daily_usage ADD COLUMN request_count INTEGER DEFAULT 0")
+        conn.commit()
 
     conn.commit()
     conn.close()
@@ -63,6 +72,7 @@ def save_usage(
     input_tokens: int = 0,
     output_tokens: int = 0,
     cache_tokens: int = 0,
+    request_count: int = 0,
     models_used: Optional[List[str]] = None
 ) -> bool:
     """Save or update usage data for a specific date and tool."""
@@ -73,9 +83,9 @@ def save_usage(
 
     cursor.execute('''
         INSERT OR REPLACE INTO daily_usage
-        (date, tool_name, tokens_used, input_tokens, output_tokens, cache_tokens, models_used)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (date, tool_name, tokens_used, input_tokens, output_tokens, cache_tokens, models_json))
+        (date, tool_name, tokens_used, input_tokens, output_tokens, cache_tokens, request_count, models_used)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (date, tool_name, tokens_used, input_tokens, output_tokens, cache_tokens, request_count, models_json))
 
     conn.commit()
     conn.close()
@@ -108,6 +118,9 @@ def get_usage_by_date(date: str, tool_name: Optional[str] = None) -> List[Dict]:
         result = dict(row)
         if result.get('models_used'):
             result['models_used'] = json.loads(result['models_used'])
+        # Ensure request_count exists with default value
+        if 'request_count' not in result:
+            result['request_count'] = 0
         results.append(result)
 
     return results
@@ -144,6 +157,9 @@ def get_usage_by_tool(
         result = dict(row)
         if result.get('models_used'):
             result['models_used'] = json.loads(result['models_used'])
+        # Ensure request_count exists with default value
+        if 'request_count' not in result:
+            result['request_count'] = 0
         results.append(result)
 
     return results
@@ -176,6 +192,8 @@ def get_summary_by_tool() -> Dict[str, Dict]:
             COUNT(*) as days_count,
             SUM(tokens_used) as total_tokens,
             AVG(tokens_used) as avg_tokens,
+            SUM(request_count) as total_requests,
+            AVG(request_count) as avg_requests,
             MIN(date) as first_date,
             MAX(date) as last_date
         FROM daily_usage
@@ -192,6 +210,8 @@ def get_summary_by_tool() -> Dict[str, Dict]:
             'days_count': row['days_count'],
             'total_tokens': row['total_tokens'],
             'avg_tokens': round(row['avg_tokens'], 2) if row['avg_tokens'] else 0,
+            'total_requests': row['total_requests'] if row['total_requests'] else 0,
+            'avg_requests': round(row['avg_requests'], 2) if row['avg_requests'] else 0,
             'first_date': row['first_date'],
             'last_date': row['last_date']
         }
@@ -229,6 +249,9 @@ def get_daily_range(
         result = dict(row)
         if result.get('models_used'):
             result['models_used'] = json.loads(result['models_used'])
+        # Ensure request_count exists with default value
+        if 'request_count' not in result:
+            result['request_count'] = 0
         results.append(result)
 
     return results

@@ -41,6 +41,7 @@ def cmd_today(tool: Optional[str] = None) -> None:
         input_tok = entry.get('input_tokens', 0)
         output_tok = entry.get('output_tokens', 0)
         cache_tok = entry.get('cache_tokens', 0)
+        request_count = entry.get('request_count', 0)
 
         print(f"\n[{tool_name.upper()}]")
         print(f"  Total:  {utils.format_tokens(tokens)} ({tokens:,})")
@@ -49,6 +50,8 @@ def cmd_today(tool: Optional[str] = None) -> None:
             print(f"  Output: {utils.format_tokens(output_tok)} ({output_tok:,})")
         if cache_tok > 0:
             print(f"  Cache:  {utils.format_tokens(cache_tok)} ({cache_tok:,})")
+        if request_count > 0:
+            print(f"  Requests: {request_count:,}")
         if entry.get('models_used'):
             print(f"  Models: {', '.join(entry['models_used'])}")
 
@@ -72,9 +75,12 @@ def cmd_query(date: str, tool: Optional[str] = None) -> None:
     for entry in entries:
         tool_name = entry['tool_name']
         tokens = entry['tokens_used']
+        request_count = entry.get('request_count', 0)
 
         print(f"\n[{tool_name.upper()}]")
         print(f"  Tokens: {utils.format_tokens(tokens)} ({tokens:,})")
+        if request_count > 0:
+            print(f"  Requests: {request_count:,}")
         if entry.get('models_used'):
             print(f"  Models: {', '.join(entry['models_used'])}")
 
@@ -100,8 +106,10 @@ def cmd_top(
 
     # Aggregate by tool
     tool_totals = defaultdict(int)
+    tool_requests = defaultdict(int)
     for entry in entries:
         tool_totals[entry['tool_name']] += entry['tokens_used']
+        tool_requests[entry['tool_name']] += entry.get('request_count', 0)
 
     print(f"Usage for the last {days} days")
     print("=" * 50)
@@ -111,6 +119,9 @@ def cmd_top(
 
     for tool_name, total in sorted_tools:
         print(f"{tool_name.upper()}: {utils.format_tokens(total)} ({total:,})")
+        req_count = tool_requests[tool_name]
+        if req_count > 0:
+            print(f"  Requests: {req_count:,}")
 
 
 def cmd_report() -> None:
@@ -262,6 +273,9 @@ def cmd_summary() -> None:
         print(f"  Days tracked:   {stats['days_count']}")
         print(f"  Total tokens:   {utils.format_tokens(stats['total_tokens'])} ({stats['total_tokens']:,})")
         print(f"  Average/day:    {utils.format_tokens(int(stats['avg_tokens']))} ({int(stats['avg_tokens']):,})")
+        if stats.get('total_requests'):
+            print(f"  Total requests: {stats['total_requests']:,}")
+            print(f"  Avg requests/day: {int(stats.get('avg_requests', 0))}")
         print(f"  Date range:     {stats['first_date']} to {stats['last_date']}")
 
 
