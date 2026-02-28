@@ -133,7 +133,12 @@ def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
 
 
 def find_claude_project_dir() -> Optional[Path]:
-    """Find the Claude project directory."""
+    """Find the Claude project directory.
+
+    Returns the parent projects directory if there are multiple subdirectories,
+    so that all subdirectories can be scanned and merged.
+    Returns a specific subdirectory if there's only one with jsonl files.
+    """
     home = Path.home()
 
     # Check standard locations
@@ -153,17 +158,19 @@ def find_claude_project_dir() -> Optional[Path]:
 
         # If no .jsonl files in root, look in subdirectories
         subdirs = [d for d in projects_dir.iterdir() if d.is_dir() and list(d.glob("*.jsonl"))]
+        if len(subdirs) == 0:
+            continue
         if len(subdirs) == 1:
             # If only one subdirectory has .jsonl files, use it
             return subdirs[0]
         elif len(subdirs) > 1:
             # Multiple subdirectories with .jsonl files
-            # Prioritize workspace-related directories
-            for subdir in subdirs:
-                if "workspace" in subdir.name.lower():
-                    return subdir
-            # If no workspace dir, return the first one
-            return subdirs[0]
+            # Return the parent projects directory so all subdirs can be scanned and merged
+            print(f"Multiple Claude project directories found, scanning all:")
+            for d in sorted(subdirs, key=lambda x: x.name.lower()):
+                files = list(d.glob("*.jsonl"))
+                print(f"  - {d.name} ({len(files)} files)")
+            return projects_dir
 
     return None
 
@@ -193,12 +200,25 @@ def fetch_and_save(days: int = 7, project_dir: Optional[Path] = None) -> bool:
         print("Error: Cannot find Claude project directory.")
         return False
 
-    jsonl_files = list(project_dir.glob("*.jsonl"))
-    if not jsonl_files:
-        print(f"Error: No .jsonl files found in {project_dir}")
-        return False
+    # Get all subdirectories with jsonl files if project_dir is a projects parent
+    # or just use the single project_dir if it directly contains jsonl files
+    projects_to_scan = []
 
-    # Aggregate across all files
+    # Check if project_dir directly contains jsonl files
+    direct_files = list(project_dir.glob("*.jsonl"))
+    if direct_files:
+        # project_dir is a direct project directory
+        projects_to_scan = [project_dir]
+    else:
+        # project_dir is a parent projects directory, get all subdirectories with jsonl
+        subdirs = [d for d in project_dir.iterdir() if d.is_dir() and list(d.glob("*.jsonl"))]
+        if subdirs:
+            projects_to_scan = sorted(subdirs, key=lambda x: x.name.lower())
+        else:
+            print(f"Error: No .jsonl files found in {project_dir}")
+            return False
+
+    # Aggregate across all projects
     aggregated = defaultdict(lambda: {
         "input_tokens": 0,
         "output_tokens": 0,
@@ -208,12 +228,17 @@ def fetch_and_save(days: int = 7, project_dir: Optional[Path] = None) -> bool:
         "models_used": set(),
     })
 
-    for f in jsonl_files:
-        daily = process_jsonl_file(f)
-        for date, stats in daily.items():
-            for key in ["input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens", "request_count"]:
-                aggregated[date][key] += stats[key]
-            aggregated[date]["models_used"].update(stats["models_used"])
+    for proj_dir in projects_to_scan:
+        jsonl_files = list(proj_dir.glob("*.jsonl"))
+        if not jsonl_files:
+            continue
+        print(f"Scanning: {proj_dir.name}")
+        for f in jsonl_files:
+            daily = process_jsonl_file(f)
+            for date, stats in daily.items():
+                for key in ["input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens", "request_count"]:
+                    aggregated[date][key] += stats[key]
+                aggregated[date]["models_used"].update(stats["models_used"])
 
     # Filter by date range
     today = datetime.now().strftime("%Y-%m-%d")

@@ -31,11 +31,7 @@ python3 "$BASE_DIR/cli.py" summary > /dev/null 2>&1 || true
 
 # Fetch OpenClaw data
 log "Fetching OpenClaw data..."
-if [ -n "$OPENCLAW_TOKEN" ]; then
-    python3 "$BASE_DIR/scripts/fetch_openclaw.py" --days 7 2>&1 | tee -a "$LOG_FILE"
-else
-    log "SKIP: OPENCLAW_TOKEN not set"
-fi
+python3 "$BASE_DIR/scripts/fetch_openclaw.py" --days 7 2>&1 | tee -a "$LOG_FILE"
 
 # Fetch Claude data
 log "Fetching Claude data..."
