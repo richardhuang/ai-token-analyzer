@@ -10,7 +10,7 @@ import sys
 import importlib.util
 import json
 from datetime import datetime, timedelta
-from flask import Flask, render_template, jsonify, request, send_from_directory
+from flask import Flask, render_template, jsonify, request, send_from_directory, make_response
 
 # Dynamically load shared modules
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -36,7 +36,12 @@ def index():
     """Render the main dashboard page."""
     summary = db.get_summary_by_tool()
     today = utils.get_today()
-    return render_template('index.html', summary=summary, today=today)
+    response = make_response(render_template('index.html', summary=summary, today=today))
+    # Add headers to prevent caching
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 
 @app.route('/api/summary')
@@ -84,6 +89,81 @@ def api_tools():
     """Get list of all tools."""
     tools = db.get_all_tools()
     return jsonify(tools)
+
+
+@app.route('/api/fetch')
+def api_fetch():
+    """Trigger data fetch for all tools."""
+    import subprocess
+
+    results = {}
+
+    # Fetch Claude data
+    try:
+        result = subprocess.run(
+            ['python3', 'scripts/fetch_claude.py', '--days', '7'],
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+        results['claude'] = {
+            'success': result.returncode == 0,
+            'stdout': result.stdout,
+            'stderr': result.stderr
+        }
+    except Exception as e:
+        results['claude'] = {
+            'success': False,
+            'error': str(e)
+        }
+
+    # Fetch Qwen data
+    try:
+        result = subprocess.run(
+            ['python3', 'scripts/fetch_qwen.py', '--days', '7'],
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+        results['qwen'] = {
+            'success': result.returncode == 0,
+            'stdout': result.stdout,
+            'stderr': result.stderr
+        }
+    except Exception as e:
+        results['qwen'] = {
+            'success': False,
+            'error': str(e)
+        }
+
+    return jsonify(results)
+
+
+@app.route('/api/messages')
+def api_messages():
+    """Get messages with filters for date, tool, and role."""
+    # Query parameters
+    date = request.args.get('date', utils.get_today())
+    tool = request.args.get('tool')
+    roles_param = request.args.get('roles')  # comma-separated list
+    search = request.args.get('search')
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 50, type=int)
+
+    # Parse roles from comma-separated string
+    roles = roles_param.split(',') if roles_param else None
+
+    # Get messages from database
+    result = db.get_messages_by_date(
+        date=date,
+        tool_name=tool,
+        roles=roles,
+        search=search,
+        page=page,
+        limit=limit
+    )
+
+    return jsonify(result)
 
 
 if __name__ == '__main__':

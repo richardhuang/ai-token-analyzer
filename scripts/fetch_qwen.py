@@ -69,6 +69,75 @@ def extract_tokens_from_entry(entry: dict) -> dict:
     return result
 
 
+def extract_content_from_entry(entry: dict) -> Optional[str]:
+    """Extract content from a Qwen log entry."""
+    entry_type = entry.get("type")
+
+    if entry_type == "user":
+        msg = entry.get("message", {})
+        if isinstance(msg, dict):
+            parts = msg.get("parts", [])
+            texts = []
+            for part in parts:
+                if isinstance(part, dict):
+                    # Qwen format: {"text": "content"}
+                    if "text" in part:
+                        texts.append(part.get("text", ""))
+                    # Also handle {type: "text", text: "content"} format
+                    elif part.get("type") == "text":
+                        texts.append(part.get("text", ""))
+                    elif part.get("type") == "image":
+                        texts.append("[Image content]")
+                    elif part.get("type") == "document":
+                        texts.append("[Document content]")
+            # For user messages, return plain text instead of JSON array
+            if len(texts) == 1:
+                return texts[0]
+            return "\n".join(texts) if texts else None
+    elif entry_type == "assistant":
+        msg = entry.get("message", {})
+        if isinstance(msg, dict):
+            parts = msg.get("parts", [])
+            texts = []
+            for part in parts:
+                if isinstance(part, dict):
+                    # Qwen format: {"text": "content"} or {"thought": true, "text": "..."}
+                    if "text" in part:
+                        texts.append(part.get("text", ""))
+                    # Also handle {type: "text", text: "content"} format
+                    elif part.get("type") == "text":
+                        texts.append(part.get("text", ""))
+                    elif part.get("type") == "tool":
+                        # Handle tool response content
+                        if isinstance(part.get("content"), str):
+                            texts.append(f"[Tool: {part.get('name', 'unknown')}]")
+                        else:
+                            texts.append(json.dumps(part.get("content", {}), ensure_ascii=False))
+                    elif "functionCall" in part:
+                        # Function call in parts
+                        fc = part.get("functionCall", {})
+                        texts.append(f"[Function: {fc.get('name', 'unknown')}({json.dumps(fc.get('args', {}))})]")
+            # Return plain text for assistant messages too
+            if len(texts) == 1:
+                return texts[0]
+            return "\n".join(texts) if texts else None
+    elif entry_type in ["system", "tool_result"]:
+        # System or tool result messages
+        msg = entry.get("message", {})
+        if isinstance(msg, dict):
+            parts = msg.get("parts", [])
+            # Also check systemPayload for certain system messages
+            if not parts and entry.get("subtype") == "ui_telemetry":
+                system_payload = entry.get("systemPayload", {})
+                return json.dumps(system_payload, ensure_ascii=False)
+            # Return plain text for system parts too
+            if len(parts) == 1 and isinstance(parts[0], dict) and "text" in parts[0]:
+                return parts[0].get("text", "")
+            return "\n".join([p.get("text", "") if isinstance(p, dict) else str(p) for p in parts]) if parts else json.dumps(msg, ensure_ascii=False)
+
+    return None
+
+
 def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
     """Process a single JSONL file and return daily token aggregates."""
     daily = defaultdict(lambda: {
@@ -97,6 +166,53 @@ def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
 
                 date_key = parse_timestamp(ts)
                 tokens = extract_tokens_from_entry(entry)
+
+                # Extract and save individual message
+                entry_type = entry.get("type")
+                if entry_type in ["user", "assistant", "system", "tool_result"]:
+                    msg = entry.get("message", {})
+                    if isinstance(msg, dict):
+                        # Get message ID - try different sources
+                        message_id = msg.get("message_id") or entry.get("id") or entry.get("uuid")
+                        if message_id:
+                            # Determine role based on entry type
+                            role_map = {
+                                "user": "user",
+                                "assistant": "assistant",
+                                "system": "system",
+                                "tool_result": "system"
+                            }
+                            role = role_map.get(entry_type, "system")
+
+                            # Get content
+                            content = extract_content_from_entry(entry)
+
+                            # Get token counts
+                            input_tokens = tokens.get("prompt_tokens", 0) + tokens.get("thoughts_tokens", 0)
+                            output_tokens = tokens.get("candidates_tokens", 0)
+                            total_tokens = tokens.get("total_tokens", 0)
+
+                            # Get model info
+                            model = entry.get("model")
+
+                            # Save full entry as JSON for complete original data
+                            full_entry_json = json.dumps(entry, ensure_ascii=False)
+
+                            # Save message to database
+                            db.save_message(
+                                date=date_key,
+                                tool_name="qwen",
+                                message_id=message_id,
+                                parent_id=entry.get("parent_id"),
+                                role=role,
+                                content=content or "",
+                                full_entry=full_entry_json,
+                                tokens_used=total_tokens,
+                                input_tokens=input_tokens,
+                                output_tokens=output_tokens,
+                                model=model,
+                                timestamp=ts
+                            )
 
                 if tokens["total_tokens"] == 0:
                     # Still count requests even if tokens are 0 (e.g., cache hits)

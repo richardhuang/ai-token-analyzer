@@ -60,6 +60,35 @@ def init_database() -> None:
         cursor.execute("ALTER TABLE daily_usage ADD COLUMN request_count INTEGER DEFAULT 0")
         conn.commit()
 
+    # Create daily_messages table for storing individual messages
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS daily_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            tool_name TEXT NOT NULL,
+            message_id TEXT NOT NULL,
+            parent_id TEXT,
+            role TEXT NOT NULL,
+            content TEXT,
+            full_entry TEXT,
+            tokens_used INTEGER DEFAULT 0,
+            input_tokens INTEGER DEFAULT 0,
+            output_tokens INTEGER DEFAULT 0,
+            model TEXT,
+            timestamp TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(date, tool_name, message_id)
+        )
+    ''')
+
+    # Check if full_entry column exists, add it if not (for old databases)
+    cursor.execute("PRAGMA table_info(daily_messages)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'full_entry' not in columns:
+        print("Adding full_entry column to existing database...")
+        cursor.execute("ALTER TABLE daily_messages ADD COLUMN full_entry TEXT")
+        conn.commit()
+
     conn.commit()
     conn.close()
     print(f"Database initialized at {DB_PATH}")
@@ -255,3 +284,117 @@ def get_daily_range(
         results.append(result)
 
     return results
+
+
+def save_message(
+    date: str,
+    tool_name: str,
+    message_id: str,
+    role: str,
+    content: str,
+    full_entry: Optional[str] = None,
+    tokens_used: int = 0,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+    model: Optional[str] = None,
+    timestamp: Optional[str] = None,
+    parent_id: Optional[str] = None
+) -> bool:
+    """Save an individual message to the database."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        INSERT OR REPLACE INTO daily_messages
+        (date, tool_name, message_id, parent_id, role, content, full_entry, tokens_used, input_tokens, output_tokens, model, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (date, tool_name, message_id, parent_id, role, content, full_entry, tokens_used, input_tokens, output_tokens, model, timestamp))
+
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_messages_by_date(
+    date: str,
+    tool_name: Optional[str] = None,
+    roles: Optional[List[str]] = None,
+    search: Optional[str] = None,
+    page: int = 1,
+    limit: int = 50
+) -> Dict:
+    """Get messages for a specific date with filters.
+
+    Args:
+        date: Date in YYYY-MM-DD format
+        tool_name: Optional tool name filter (claude, qwen, etc.)
+        roles: Optional list of roles to filter (user, assistant, system)
+        search: Optional search term for message content
+        page: Page number (1-indexed)
+        limit: Number of results per page
+
+    Returns:
+        Dict with 'messages' (list), 'total' (int), 'page', 'limit', 'total_pages'
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Build query with WHERE conditions
+    conditions = ['date = ?']
+    params = [date]
+
+    if tool_name:
+        conditions.append('tool_name = ?')
+        params.append(tool_name)
+
+    if roles:
+        placeholders = ','.join(['?' for _ in roles])
+        conditions.append(f'role IN ({placeholders})')
+        params.extend(roles)
+
+    if search:
+        conditions.append('content LIKE ?')
+        params.append(f'%{search}%')
+
+    # Get total count
+    where_clause = ' AND '.join(conditions)
+    cursor.execute(f'''
+        SELECT COUNT(*) as count FROM daily_messages
+        WHERE {where_clause}
+    ''', params)
+
+    total = cursor.fetchone()['count']
+    total_pages = (total + limit - 1) // limit if total > 0 else 1
+
+    # Get paginated messages
+    offset = (page - 1) * limit
+    cursor.execute(f'''
+        SELECT * FROM daily_messages
+        WHERE {where_clause}
+        ORDER BY timestamp DESC
+        LIMIT ? OFFSET ?
+    ''', params + [limit, offset])
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    messages = []
+    for row in rows:
+        msg = dict(row)
+        # Store original content first
+        original_content = msg.get('content')
+        # Parse content as JSON if possible
+        if original_content:
+            try:
+                msg['content_parsed'] = json.loads(original_content)
+            except (json.JSONDecodeError, TypeError):
+                msg['content_parsed'] = original_content
+        messages.append(msg)
+
+    return {
+        'messages': messages,
+        'total': total,
+        'page': page,
+        'limit': limit,
+        'total_pages': total_pages
+    }

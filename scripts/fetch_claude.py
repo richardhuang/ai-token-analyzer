@@ -76,6 +76,67 @@ def extract_tokens_from_entry(entry: dict) -> dict:
     return result
 
 
+def extract_content_from_entry(entry: dict) -> Optional[str]:
+    """Extract content from a Claude Code log entry."""
+    entry_type = entry.get("type")
+
+    if entry_type == "user":
+        msg = entry.get("message", {})
+        if isinstance(msg, dict):
+            content = msg.get("content", {})
+            # For user messages, content is typically a string
+            if isinstance(content, str):
+                return content
+            elif isinstance(content, list) and len(content) > 0:
+                # Check if this is a tool result response (not actual user message)
+                # Tool result responses contain tool_use_id but no actual user text
+                has_tool_result = any(isinstance(p, dict) and p.get("type") == "tool_result" for p in content)
+                has_text = any(isinstance(p, dict) and p.get("type") == "text" for p in content)
+
+                if has_tool_result and not has_text:
+                    # This is a tool result response, not actual user message - skip it
+                    return None
+
+                # Get text content from parts
+                texts = []
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        texts.append(part.get("text", ""))
+                    elif isinstance(part, dict) and "text" in part:
+                        # Qwen format: {"text": "content"}
+                        texts.append(part.get("text", ""))
+                    elif isinstance(part, dict) and "content" in part and isinstance(part.get("content"), str):
+                        # Tool result format: {"type": "tool_result", "content": "..."}
+                        # Only include if it's not the sole content type
+                        texts.append(part.get("content"))
+                return "\n".join(texts) if texts else json.dumps(content, ensure_ascii=False)
+    elif entry_type == "assistant":
+        msg = entry.get("message", {})
+        if isinstance(msg, dict):
+            content = msg.get("content", {})
+            if isinstance(content, str):
+                return content
+            elif isinstance(content, list) and len(content) > 0:
+                texts = []
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        texts.append(part.get("text", ""))
+                return json.dumps(texts, ensure_ascii=False) if texts else json.dumps(content, ensure_ascii=False)
+            # Handle toolUse and other content types
+            tool_uses = msg.get("tool_uses", [])
+            if tool_uses:
+                return json.dumps(tool_uses, ensure_ascii=False)
+    elif entry_type == "system":
+        # System messages often contain tool configurations or errors
+        content = entry.get("content", {})
+        if isinstance(content, str):
+            return content
+        elif isinstance(content, dict):
+            return json.dumps(content, ensure_ascii=False)
+
+    return None
+
+
 def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
     """Process a single JSONL file and return daily token aggregates."""
     daily = defaultdict(lambda: {
@@ -104,6 +165,59 @@ def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
                 date_key = parse_timestamp(ts)
                 tokens = extract_tokens_from_entry(entry)
 
+                # Extract and save individual message
+                entry_type = entry.get("type")
+                if entry_type in ["user", "assistant", "system"]:
+                    msg = entry.get("message", {})
+                    if isinstance(msg, dict):
+                        # Get message ID - try different sources
+                        message_id = msg.get("id") or entry.get("id") or entry.get("uuid") or entry.get("messageId")
+                        if message_id:
+                            # Determine role based on entry type
+                            role_map = {
+                                "user": "user",
+                                "assistant": "assistant",
+                                "system": "system"
+                            }
+                            role = role_map.get(entry_type, "system")
+
+                            # Get content
+                            content = extract_content_from_entry(entry)
+
+                            # If content is None, skip this message (it's not an actual user message)
+                            if content is None:
+                                continue
+
+                            # Get token counts
+                            input_tokens = 0
+                            output_tokens = 0
+                            if tokens:
+                                input_tokens = tokens.get("input_tokens", 0)
+                                output_tokens = tokens.get("output_tokens", 0)
+                            total_tokens = input_tokens + output_tokens
+
+                            # Get model info
+                            model = msg.get("model") if entry_type == "assistant" else None
+
+                            # Save full entry as JSON for complete original data
+                            full_entry_json = json.dumps(entry, ensure_ascii=False)
+
+                            # Save message to database
+                            db.save_message(
+                                date=date_key,
+                                tool_name="claude",
+                                message_id=message_id,
+                                parent_id=entry.get("parent_id") or entry.get("parentUuid"),
+                                role=role,
+                                content=content or "",
+                                full_entry=full_entry_json,
+                                tokens_used=total_tokens,
+                                input_tokens=input_tokens,
+                                output_tokens=output_tokens,
+                                model=model,
+                                timestamp=ts
+                            )
+
                 if sum([
                     tokens["input_tokens"],
                     tokens["output_tokens"],
@@ -126,7 +240,8 @@ def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
                 if tokens["model"]:
                     daily[date_key]["models_used"].add(tokens["model"])
 
-            except (json.JSONDecodeError, KeyError, TypeError):
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                # Silently skip problematic entries
                 continue
 
     return dict(daily)

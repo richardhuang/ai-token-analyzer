@@ -182,3 +182,261 @@ QWEN
   Total requests: 425
   Avg requests/day: 106
   Date range:     2026-02-22 to 2026-02-25
+[2026-02-28 09:54:46] Starting daily token usage collection
+[2026-02-28 09:54:46] Initializing database...
+[2026-02-28 09:54:46] Fetching OpenClaw data...
+[2026-02-28 09:54:46] SKIP: OPENCLAW_TOKEN not set
+[2026-02-28 09:54:46] Fetching Claude data...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+  2026-02-25: 10,287,701 tokens, 353 requests
+  2026-02-26: 72,921,576 tokens, 928 requests
+  2026-02-24: 2,466,174 tokens, 152 requests
+  2026-02-23: 20,448,492 tokens, 466 requests
+
+Saved 4 days of Claude usage data
+[2026-02-28 09:54:46] Fetching Qwen data...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+  2026-02-25: 1,533,768 tokens, 35 requests
+  2026-02-22: 266,235 tokens, 16 requests
+  2026-02-23: 50,853,911 tokens, 373 requests
+  2026-02-24: 318,340 tokens, 1 requests
+
+Saved 4 days of Qwen usage data
+[2026-02-28 09:54:46] Sending email report...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+Email sent successfully to rh@ivyent.cn
+Report sent to rh@ivyent.cn
+[2026-02-28 09:54:49] Daily collection completed
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+AI Token Usage Summary
+============================================================
+
+OPENCLAW
+  Days tracked:   6
+  Total tokens:   118.06M (118,058,671)
+  Average/day:    19.68M (19,676,445)
+  Date range:     2026-02-21 to 2026-02-26
+
+CLAUDE
+  Days tracked:   5
+  Total tokens:   117.64M (117,638,447)
+  Average/day:    23.53M (23,527,689)
+  Total requests: 2,117
+  Avg requests/day: 423
+  Date range:     2026-02-23 to 2026-02-27
+
+QWEN
+  Days tracked:   4
+  Total tokens:   52.97M (52,972,254)
+  Average/day:    13.24M (13,243,063)
+  Total requests: 425
+  Avg requests/day: 106
+  Date range:     2026-02-22 to 2026-02-25
+[2026-02-28 10:59:40] Starting daily token usage collection
+[2026-02-28 10:59:40] Initializing database...
+[2026-02-28 10:59:41] Fetching OpenClaw data...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+Fetching 7 days of OpenClaw usage data...
+Date range: 2026-02-22 to 2026-02-28
+Connecting to WebSocket: ws://127.0.0.1:18789/gateway
+Connection established successfully!
+Usage request failed: {'type': 'event', 'event': 'health', 'payload': {'ok': True, 'ts': 1772247581386, 'durationMs': 239, 'channels': {'slack': {'configured': True, 'botTokenSource': 'none', 'appTokenSource': 'none', 'running': False, 'lastStartAt': None, 'lastStopAt': None, 'lastError': None, 'probe': {'ok': True, 'status': 200, 'elapsedMs': 239, 'bot': {'id': 'U0AE9GW0KLJ', 'name': 'openclaw'}, 'team': {'id': 'T0A4E1BMH6Y', 'name': 'Openclaw'}}, 'lastProbeAt': 1772247581386, 'accountId': 'default', 'accounts': {'default': {'configured': True, 'botTokenSource': 'none', 'appTokenSource': 'none', 'running': False, 'lastStartAt': None, 'lastStopAt': None, 'lastError': None, 'probe': {'ok': True, 'status': 200, 'elapsedMs': 239, 'bot': {'id': 'U0AE9GW0KLJ', 'name': 'openclaw'}, 'team': {'id': 'T0A4E1BMH6Y', 'name': 'Openclaw'}}, 'lastProbeAt': 1772247581386, 'accountId': 'default'}}}}, 'channelOrder': ['slack'], 'channelLabels': {'slack': 'Slack'}, 'heartbeatSeconds': 1800, 'defaultAgentId': 'main', 'agents': [{'agentId': 'main', 'isDefault': True, 'heartbeat': {'enabled': True, 'every': '30m', 'everyMs': 1800000, 'prompt': 'Read HEARTBEAT.md if it exists (workspace context). Follow it strictly. Do not infer or repeat old tasks from prior chats. If nothing needs attention, reply HEARTBEAT_OK.', 'target': 'none', 'ackMaxChars': 300}, 'sessions': {'path': '/Users/rhuang/.openclaw/agents/main/sessions/sessions.json', 'count': 13, 'recent': [{'key': 'agent:main:main', 'updatedAt': 1772197634270, 'age': 49946877}, {'key': 'agent:main:main:thread:1772106870.571109', 'updatedAt': 1772108766897, 'age': 138814250}, {'key': 'agent:main:main:thread:1772104483.499509', 'updatedAt': 1772105795742, 'age': 141785405}, {'key': 'agent:main:slack:channel:c0a4422vc2f:thread:1772028014.868039', 'updatedAt': 1772028350824, 'age': 219230323}, {'key': 'agent:main:slack:channel:c0a4422vc2f', 'updatedAt': 1772028033124, 'age': 219548023}]}}], 'sessions': {'path': '/Users/rhuang/.openclaw/agents/main/sessions/sessions.json', 'count': 13, 'recent': [{'key': 'agent:main:main', 'updatedAt': 1772197634270, 'age': 49946877}, {'key': 'agent:main:main:thread:1772106870.571109', 'updatedAt': 1772108766897, 'age': 138814250}, {'key': 'agent:main:main:thread:1772104483.499509', 'updatedAt': 1772105795742, 'age': 141785405}, {'key': 'agent:main:slack:channel:c0a4422vc2f:thread:1772028014.868039', 'updatedAt': 1772028350824, 'age': 219230323}, {'key': 'agent:main:slack:channel:c0a4422vc2f', 'updatedAt': 1772028033124, 'age': 219548023}]}}, 'seq': 1602, 'stateVersion': {'presence': 14, 'health': 445}}
+Failed to retrieve usage data
+[2026-02-28 10:59:41] Fetching Claude data...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+Multiple Claude project directories found, scanning all:
+  - -Users-rhuang-workspace (9 files)
+  - -Users-rhuang-workspace-ai-token-usage (5 files)
+  - -Users-rhuang-workspace-claude (1 files)
+Scanning: -Users-rhuang-workspace
+Scanning: -Users-rhuang-workspace-ai-token-usage
+Scanning: -Users-rhuang-workspace-claude
+  2026-02-25: 10,287,701 tokens, 353 requests
+  2026-02-26: 72,921,576 tokens, 928 requests
+  2026-02-24: 2,466,174 tokens, 152 requests
+  2026-02-23: 20,448,492 tokens, 466 requests
+  2026-02-27: 49,530,259 tokens, 736 requests
+  2026-02-28: 3,865,890 tokens, 154 requests
+
+Saved 6 days of Claude usage data
+[2026-02-28 10:59:41] Fetching Qwen data...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+Scanning: chats
+  2026-02-25: 1,533,768 tokens, 35 requests
+  2026-02-22: 266,235 tokens, 16 requests
+  2026-02-23: 50,853,911 tokens, 373 requests
+  2026-02-24: 318,340 tokens, 1 requests
+
+Saved 4 days of Qwen usage data
+[2026-02-28 10:59:41] Sending email report...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+Email sent successfully to rh@ivyent.cn
+Report sent to rh@ivyent.cn
+[2026-02-28 10:59:42] Daily collection completed
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+AI Token Usage Summary
+============================================================
+
+CLAUDE
+  Days tracked:   6
+  Total tokens:   159.52M (159,520,092)
+  Average/day:    26.59M (26,586,682)
+  Total requests: 2,789
+  Avg requests/day: 464
+  Date range:     2026-02-23 to 2026-02-28
+
+OPENCLAW
+  Days tracked:   6
+  Total tokens:   118.06M (118,058,671)
+  Average/day:    19.68M (19,676,445)
+  Date range:     2026-02-21 to 2026-02-26
+
+QWEN
+  Days tracked:   4
+  Total tokens:   52.97M (52,972,254)
+  Average/day:    13.24M (13,243,063)
+  Total requests: 425
+  Avg requests/day: 106
+  Date range:     2026-02-22 to 2026-02-25
+[2026-02-28 11:13:04] Starting daily token usage collection
+[2026-02-28 11:13:04] Initializing database...
+[2026-02-28 11:13:04] Fetching OpenClaw data...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+Fetching 7 days of OpenClaw usage data...
+Date range: 2026-02-22 to 2026-02-28
+Connecting to WebSocket: ws://127.0.0.1:18789/gateway
+Connection established successfully!
+  2026-02-22: 14,891,674 tokens
+  2026-02-23: 7,698,819 tokens
+  2026-02-24: 48,289,654 tokens
+  2026-02-25: 41,548,324 tokens
+  2026-02-26: 2,952,032 tokens
+  2026-02-27: 3,603,662 tokens
+
+Saved 6 days of OpenClaw usage data
+[2026-02-28 11:13:04] Fetching Claude data...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+Multiple Claude project directories found, scanning all:
+  - -Users-rhuang-workspace (9 files)
+  - -Users-rhuang-workspace-ai-token-usage (5 files)
+  - -Users-rhuang-workspace-claude (1 files)
+Scanning: -Users-rhuang-workspace
+Scanning: -Users-rhuang-workspace-ai-token-usage
+Scanning: -Users-rhuang-workspace-claude
+  2026-02-25: 10,287,701 tokens, 353 requests
+  2026-02-26: 72,921,576 tokens, 928 requests
+  2026-02-24: 2,466,174 tokens, 152 requests
+  2026-02-23: 20,448,492 tokens, 466 requests
+  2026-02-27: 49,530,259 tokens, 736 requests
+  2026-02-28: 5,157,130 tokens, 184 requests
+
+Saved 6 days of Claude usage data
+[2026-02-28 11:13:05] Fetching Qwen data...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+Scanning: chats
+  2026-02-25: 1,533,768 tokens, 35 requests
+  2026-02-22: 266,235 tokens, 16 requests
+  2026-02-23: 50,853,911 tokens, 373 requests
+  2026-02-24: 318,340 tokens, 1 requests
+
+Saved 4 days of Qwen usage data
+[2026-02-28 11:13:05] Sending email report...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+Email sent successfully to rh@ivyent.cn
+Report sent to rh@ivyent.cn
+[2026-02-28 11:13:09] Daily collection completed
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+AI Token Usage Summary
+============================================================
+
+CLAUDE
+  Days tracked:   6
+  Total tokens:   160.81M (160,811,332)
+  Average/day:    26.80M (26,801,888)
+  Total requests: 2,819
+  Avg requests/day: 469
+  Date range:     2026-02-23 to 2026-02-28
+
+OPENCLAW
+  Days tracked:   7
+  Total tokens:   119.34M (119,343,514)
+  Average/day:    17.05M (17,049,073)
+  Date range:     2026-02-21 to 2026-02-27
+
+QWEN
+  Days tracked:   4
+  Total tokens:   52.97M (52,972,254)
+  Average/day:    13.24M (13,243,063)
+  Total requests: 425
+  Avg requests/day: 106
+  Date range:     2026-02-22 to 2026-02-25
+[2026-03-01 00:30:01] Starting daily token usage collection
+[2026-03-01 00:30:01] Initializing database...
+[2026-03-01 00:30:01] Fetching OpenClaw data...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+Fetching 7 days of OpenClaw usage data...
+Date range: 2026-02-23 to 2026-03-01
+Connecting to WebSocket: ws://127.0.0.1:18789/gateway
+Connection established successfully!
+  2026-02-28: 8,922,421 tokens
+
+Saved 1 days of OpenClaw usage data
+[2026-03-01 00:30:02] Fetching Claude data...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+Multiple Claude project directories found, scanning all:
+  - -Users-rhuang-workspace (11 files)
+  - -Users-rhuang-workspace-ai-token-usage (6 files)
+  - -Users-rhuang-workspace-claude (3 files)
+  - -Users-rhuang-workspace-github-v2box-auto (1 files)
+  - -Users-rhuang-workspace-tmp (2 files)
+Scanning: -Users-rhuang-workspace
+Scanning: -Users-rhuang-workspace-ai-token-usage
+Scanning: -Users-rhuang-workspace-claude
+Scanning: -Users-rhuang-workspace-github-v2box-auto
+Scanning: -Users-rhuang-workspace-tmp
+  2026-02-28: 46,349,859 tokens, 1099 requests
+  2026-02-25: 10,287,701 tokens, 353 requests
+  2026-02-26: 72,921,576 tokens, 928 requests
+  2026-02-24: 2,466,174 tokens, 152 requests
+  2026-02-23: 20,448,492 tokens, 466 requests
+  2026-02-27: 49,530,259 tokens, 736 requests
+
+Saved 6 days of Claude usage data
+[2026-03-01 00:30:02] Fetching Qwen data...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+Scanning: chats
+  2026-02-25: 1,533,768 tokens, 35 requests
+  2026-02-23: 50,853,911 tokens, 373 requests
+  2026-02-24: 318,340 tokens, 1 requests
+
+Saved 3 days of Qwen usage data
+[2026-03-01 00:30:03] Sending email report...
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+Email sent successfully to rh@ivyent.cn
+Report sent to rh@ivyent.cn
+[2026-03-01 00:30:08] Daily collection completed
+Database initialized at /Users/rhuang/.ai_token_usage/usage.db
+AI Token Usage Summary
+============================================================
+
+CLAUDE
+  Days tracked:   6
+  Total tokens:   202.00M (202,004,061)
+  Average/day:    33.67M (33,667,343)
+  Total requests: 3,734
+  Avg requests/day: 622
+  Date range:     2026-02-23 to 2026-02-28
+
+OPENCLAW
+  Days tracked:   8
+  Total tokens:   128.27M (128,265,935)
+  Average/day:    16.03M (16,033,241)
+  Date range:     2026-02-21 to 2026-02-28
+
+QWEN
+  Days tracked:   4
+  Total tokens:   52.97M (52,972,254)
+  Average/day:    13.24M (13,243,063)
+  Total requests: 425
+  Avg requests/day: 106
+  Date range:     2026-02-22 to 2026-02-25

@@ -3,68 +3,842 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Token Usage Dashboard</title>
+    <title>AI Token Analyzer Dashboard</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><linearGradient id=%22grad%22 x1=%220%22 x2=%221%22 y1=%220%22 y2=%221%22><stop offset=%220%22 stop-color=%22%23667eea%22/><stop offset=%221%22 stop-color=%22%23764ba2%22/></linearGradient><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22url(%23grad)%22/><path d=%22M30 40h40M30 60h40M35 30v40M65 30v40M25 50h50%22 stroke=%22white%22 stroke-width=%228%22 stroke-linecap=%22round%22 fill=%22none%22/></svg>">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     <style>
+        :root {
+            --sidebar-width: 250px;
+            --sidebar-bg: #343a40;
+            --sidebar-text: #ffffff;
+            --sidebar-text-muted: #adb5bd;
+            --main-bg: #f8f9fa;
+        }
+
+        body {
+            background-color: var(--main-bg);
+            overflow-x: hidden;
+        }
+
+        /* Sidebar styles */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: var(--sidebar-width);
+            background-color: var(--sidebar-bg);
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #4b5259;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #4b5259;
+        }
+
+        .sidebar-header h4 {
+            margin: 0;
+            color: white;
+            font-size: 1.1rem;
+        }
+
+        .lang-switch {
+            margin-top: 10px;
+            padding: 8px 15px;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            font-size: 0.85rem;
+            width: 100%;
+            transition: background 0.2s;
+        }
+
+        .lang-switch:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 10px 0;
+            overflow-y: auto;
+        }
+
+        .nav-link {
+            color: var(--sidebar-text-muted);
+            padding: 12px 20px;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-link:hover {
+            color: white;
+            background-color: #2b3035;
+        }
+
+        .nav-link.active {
+            color: white;
+            background-color: #2b3035;
+            border-left-color: #0d6efd;
+        }
+
+        .nav-link .bi {
+            margin-right: 10px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .sidebar-footer {
+            padding: 15px 20px;
+            border-top: 1px solid #4b5259;
+            font-size: 0.85rem;
+            color: var(--sidebar-text-muted);
+        }
+
+        /* Main content styles */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            transition: margin-left 0.3s ease;
+            min-height: 100vh;
+        }
+
+        .main-content.full-width {
+            margin-left: 0;
+        }
+
+        .navbar-custom {
+            background-color: #4b5259;
+            padding: 10px 20px;
+        }
+
+        .navbar-custom .navbar-brand {
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .content-section {
+            padding: 20px;
+        }
+
+        /* Dashboard cards */
         .usage-card {
             transition: transform 0.2s;
         }
         .usage-card:hover {
             transform: translateY(-5px);
         }
+
+        /* Messages page styles */
+        .message-filters {
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .filter-group {
+            margin-bottom: 10px;
+        }
+
+        .filter-group label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .role-filter {
+            display: flex;
+            gap: 15px;
+        }
+
+        .role-filter .form-check {
+            display: flex;
+            align-items: center;
+        }
+
+        .role-filter .form-check-input {
+            width: 1.2em;
+            height: 1.2em;
+            margin-right: 8px;
+        }
+
+        .role-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .role-badge.user {
+            background-color: #0d6efd;
+            color: white;
+        }
+
+        .role-badge.assistant {
+            background-color: #198754;
+            color: white;
+        }
+
+        .role-badge.system {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .message-item {
+            background-color: white;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: box-shadow 0.2s;
+        }
+
+        .message-item:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .message-item.expanded {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        /* Chevron transition */
+        .transition-transform {
+            transition: transform 0.3s ease;
+            display: inline-block;
+        }
+
+        .rotate-180 {
+            transform: rotate(180deg);
+        }
+
+        .message-header {
+            padding: 12px 15px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+            gap: 10px; /* Add gap between elements */
+        }
+
+        .message-role {
+            width: 100px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .message-content {
+            flex: 1;
+            min-width: 0; /* Prevent flex item from overflowing */
+            max-width: 100%; /* Ensure content doesn't exceed container */
+        }
+
+        .message-content-truncated {
+            color: #495057;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            word-break: break-word; /* Allow breaking long words */
+            overflow-wrap: break-word;
+        }
+
+        .message-content-expanded {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-top: 1px solid #eee;
+            color: #212529;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace;
+        }
+
+        .message-footer {
+            padding: 8px 15px;
+            background-color: #f8f9fa;
+            font-size: 0.8rem;
+            color: #6c757d;
+            display: flex;
+            justify-content: space-between;
+            border-top: 1px solid #eee;
+        }
+
+        .message-tokens {
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .btn-toggle {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+        }
+
+        /* Loading spinner */
+        .spinner-border-sm {
+            width: 1rem;
+            height: 1rem;
+            border-width: 0.15em;
+        }
+
+        /* Pagination */
+        .pagination-wrapper {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        /* Message filter styles */
+        .message-filters {
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .filter-group {
+            margin-bottom: 0;
+        }
+
+        .filter-group label {
+            font-weight: 500;
+            margin-bottom: 0.3rem;
+            display: block;
+        }
+
+        .role-filter {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .form-check-inline {
+            margin-right: 15px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            .main-content {
+                margin-left: 0;
+            }
+            .main-content.mobile-shifted {
+                transform: translateX(var(--sidebar-width));
+            }
+            .content-section {
+                padding: 10px;
+            }
+        }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-dark bg-primary mb-4">
-        <div class="container">
-            <span class="navbar-brand">AI Token Usage Dashboard</span>
-            <span class="navbar-text">Last updated: <span id="last-updated">{{today}}</span></span>
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h4><i class="bi bi-bar-chart-line"></i> <span id="sidebar-title">AI Token Analyzer</span></h4>
+        </div>
+        <div class="sidebar-nav" id="sidebar-nav">
+            <a href="#" class="nav-link active" id="nav-dashboard" onclick="switchSection('dashboard'); return false;">
+                <i class="bi bi-bar-chart-line"></i> <span id="nav-dashboard-text">Dashboard</span>
+            </a>
+            <a href="#" class="nav-link" id="nav-messages" onclick="switchSection('messages'); return false;">
+                <i class="bi bi-chat-dots"></i> <span id="nav-messages-text">Messages</span>
+            </a>
+        </div>
+        <div class="sidebar-footer">
+            <button class="lang-switch" id="lang-switch-btn" onclick="switchLang(currentLang === 'en' ? 'zh' : 'en')">中文</button>
+            <small class="d-block mt-2"><span id="last-updated-label">Last updated:</span> <span id="sidebar-updated">{{today}}</span></small>
         </div>
     </nav>
 
-    <div class="container">
-        <!-- Today's Usage Cards -->
-        <h3 class="mb-4">Today's Usage (<span id="today-date">{{today}}</span>)</h3>
-        <div class="row" id="today-cards">
-            <div class="col-12 text-center text-muted">
-                Loading data...
+    <!-- Main Content -->
+    <div class="main-content" id="main-content">
+        <!-- Mobile Sidebar Toggle -->
+        <nav class="navbar-custom navbar d-md-none">
+            <div class="container-fluid">
+                <button class="btn btn-sm btn-outline-light" id="toggle-sidebar">
+                    <i class="bi bi-list"></i> Menu
+                </button>
+                <span class="navbar-brand ms-2">AI Token Analyzer</span>
             </div>
-        </div>
+        </nav>
 
-        <div class="row mt-4">
-            <!-- Summary Cards -->
-            <div class="col-md-4">
-                <div class="card usage-card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">Total Overview</h5>
-                        <canvas id="totalChart"></canvas>
+        <!-- Dashboard Section -->
+        <div id="dashboard-section" class="content-section">
+            <!-- Today's Usage Cards -->
+            <h3 class="mb-4"><span id="dashboard-today-usage">Today's Usage</span> (<span id="today-date">{{today}}</span>)</h3>
+            <div class="row" id="today-cards">
+                <div class="col-12 text-center text-muted py-5">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden"><span id="loading-today-text">Loading...</span></span>
+                    </div>
+                    <p class="mt-2"><span id="loading-data-today-text">Loading data...</span></p>
+                </div>
+            </div>
+
+            <div class="row mt-4">
+                <!-- Summary Cards -->
+                <div class="col-md-4">
+                    <div class="card usage-card mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title"><span id="dashboard-total-overview"><span id="total-overview-text">Total Overview</span></span></h5>
+                            <canvas id="totalChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-8">
+                    <div class="card usage-card">
+                        <div class="card-body">
+                            <h5 class="card-title"><span id="dashboard-trend-chart"><span id="trend-chart-text">Trend Chart (Last 30 Days)</span></span></h5>
+                            <canvas id="trendChart"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="col-md-8">
-                <div class="card usage-card">
-                    <div class="card-body">
-                        <h5 class="card-title">Trend Chart (Last 30 Days)</h5>
-                        <canvas id="trendChart"></canvas>
+            <!-- Tools Info -->
+            <div class="row mt-4" id="tools-info">
+                <div class="col-12 text-center text-muted py-5">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden"><span id="loading-tools-text">Loading...</span></span>
                     </div>
+                    <p class="mt-2"><span id="loading-data-tools-text">Loading data...</span></p>
                 </div>
             </div>
         </div>
 
-        <!-- Tools Info -->
-        <div class="row mt-4" id="tools-info">
-            <div class="col-12 text-center text-muted">
-                Loading data...
+        <!-- Messages Section -->
+        <div id="messages-section" class="content-section" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3><i class="bi bi-chat-dots"></i> <span id="messages-title">Messages</span></h3>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="auto-refresh" onchange="toggleAutoRefresh()">
+                        <label class="form-check-label" for="auto-refresh"><span id="auto-refresh-text">Auto-refresh</span></label>
+                    </div>
+                    <button class="btn btn-outline-primary btn-sm" onclick="refreshMessages()">
+                        <i class="bi bi-arrow-repeat"></i> <span id="refresh-btn-text">Refresh</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="message-filters">
+                <div class="row g-3">
+                    <!-- Date Filter -->
+                    <div class="col-md-3">
+                        <label class="form-label"><span id="filter-date-label">Date</span></label>
+                        <input type="date" class="form-control" id="date-filter" value="{{today}}" onchange="loadMessages()">
+                    </div>
+
+                    <!-- Tool Filter -->
+                    <div class="col-md-3">
+                        <label class="form-label"><span id="filter-tool-label">Tool</span></label>
+                        <select class="form-select" id="tool-filter" onchange="loadMessages()">
+                            <option value=""><span id="filter-all-tools">All Tools</span></option>
+                            <option value="claude"><span id="filter-claude">Claude</span></option>
+                            <option value="openclaw"><span id="filter-openclaw">Openclaw</span></option>
+                            <option value="qwen"><span id="filter-qwen">Qwen</span></option>
+                        </select>
+                    </div>
+
+                    <!-- Search Filter -->
+                    <div class="col-md-4">
+                        <label class="form-label"><span id="filter-search-label">Search</span></label>
+                        <input type="text" class="form-control" id="search-filter" placeholder="" oninput="loadMessages()">
+                    </div>
+                </div>
+
+                <!-- Role Filter -->
+                <div class="row g-3 mt-2">
+                    <div class="col-12">
+                        <label><span id="filter-role-label">Role</span></label>
+                        <div class="role-filter">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="role-user" value="user" checked onchange="loadMessages()">
+                                <label class="form-check-label" for="role-user"><span id="role-user-text">User</span></label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="role-assistant" value="assistant" onchange="loadMessages()">
+                                <label class="form-check-label" for="role-assistant"><span id="role-assistant-text">Assistant</span></label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="role-system" value="system" onchange="loadMessages()">
+                                <label class="form-check-label" for="role-system"><span id="role-system-text">System</span></label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Messages List -->
+            <div id="messages-container">
+                <div class="text-center text-muted py-5">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading messages...</p>
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination-wrapper" id="pagination-controls" style="display: none;">
+                <nav aria-label="Messages pagination">
+                    <ul class="pagination" id="message-pagination">
+                        <li class="page-item disabled" id="prev-page">
+                            <a class="page-link" href="#" onclick="prevPage()"><i class="bi bi-chevron-left"></i> <span id="prev-page-text">Previous</span></a>
+                        </li>
+                        <li class="page-item" id="page-display">
+                            <span class="page-link"><span id="page-text">Page</span> <span id="current-page">1</span> <span id="of-text">of</span> <span id="total-pages">1</span></span>
+                        </li>
+                        <li class="page-item" id="next-page">
+                            <a class="page-link" href="#" onclick="nextPage()"><span id="next-page-text">Next</span> <i class="bi bi-chevron-right"></i></a>
+                        </li>
+                    </ul>
+                </nav>
             </div>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Language resources
+        const i18n = {
+            en: {
+                sidebarTitle: 'AI Token Analyzer',
+                dashboardNav: 'Dashboard',
+                messagesNav: 'Messages',
+                refreshBtn: 'Refresh',
+                autoRefresh: 'Auto-refresh',
+                totalOverview: 'Total Overview',
+                trendChart: 'Trend Chart (Last 30 Days)',
+                loading: 'Loading...',
+                loadingData: 'Loading data...',
+                noData: 'No data available for today',
+                searchPlaceholder: 'Search messages...',
+                allTools: 'All Tools',
+                openclaw: 'Openclaw',
+                claude: 'Claude',
+                qwen: 'Qwen',
+                dateLabel: 'Date',
+                toolLabel: 'Tool',
+                searchLabel: 'Search',
+                applyBtn: 'Apply',
+                roleLabel: 'Role',
+                user: 'User',
+                assistant: 'Assistant',
+                system: 'System',
+                noMessagesFound: 'No messages found for the selected filters',
+                openclawMessagesNotAvailable: 'Openclaw Messages Not Available',
+                openclawMessagesNotAvailableDetail: 'Openclaw does not support viewing individual messages. This feature is only available for Claude and Qwen.',
+                resetFilters: 'Reset Filters',
+                selectRole: 'Please select at least one role to view messages',
+                prevPage: 'Previous',
+                nextPage: 'Next',
+                page: 'Page',
+                of: 'of',
+                tokens: 'tokens',
+                model: 'Model',
+                refreshMessages: 'Refreshing messages...',
+                noNewMessages: 'No new messages, skipping refresh',
+                fetchCompleted: 'Data fetch completed',
+                fetchedForTools: 'Successfully fetched data for',
+                tools: 'tools',
+                loadMessages: 'Loading messages from:',
+                messagesDataCount: 'Messages data count:',
+                messagesRoles: 'Messages roles:',
+                messagesDataReceived: 'Messages data received:',
+                renderMessagesCalled: 'renderMessages called, data.messages.length:',
+                populatingMessagesDataMap: 'Populating messagesDataMap...',
+                storingMsg: 'Storing msg:',
+                type: 'type:',
+                messagesDataMapKeys: 'messagesDataMap populated, keys:',
+                messagesDataMapEmpty: 'window.messagesDataMap is empty!',
+                toggleExpanded: 'toggleExpanded called',
+                messageId: 'message ID:',
+                contentExpanded: 'contentExpanded:',
+                preElement: 'preElement:',
+                foundMessage: 'Found message from messagesDataMap:',
+                msgContentLength: 'msg.content length:',
+                msgContent: 'msg.content:',
+                content: 'content',
+                total_requests: 'Requests',
+                input_tokens: 'Input',
+                output_tokens: 'Output',
+                total_tokens: 'total',
+                days_tracked: 'days tracked',
+                avg: 'Avg',
+                date_range: 'Date range',
+                errorLoadingSummary: 'Error loading summary data',
+                errorLoadingToday: 'Error loading today data',
+                unknown: 'Unknown',
+                todayUsage: "Today's Usage",
+                trendChartLabel: 'Trend Chart (Last 30 Days)',
+                dashboardTotalTokens: 'Total Token Usage by Tool',
+                tokenUsageTrend: 'Token Usage Trend (Last 30 Days)',
+                chartTooltipTokens: 'tokens',
+                chartRequests: 'Requests',
+                errorLoadingData: 'Error loading data',
+                dataNotAvailable: 'No data available',
+                chartJsLoading: 'Chart.js loading...',
+                dateFilter: 'Date',
+                toolFilter: 'Tool',
+                searchFilter: 'Search',
+                refresh: 'Refresh',
+                lastUpdated: 'Last updated:',
+                sidebarUpdated: 'Last updated:',
+                tableDate: 'Date',
+                tableRequests: 'Requests',
+                tableInput: 'Input',
+                tableOutput: 'Output',
+                tableTotal: 'Total',
+                noDataAvailable: '-'
+            },
+            zh: {
+                sidebarTitle: 'AI Token Analyzer',
+                dashboardNav: '仪表盘',
+                messagesNav: '消息',
+                refreshBtn: '刷新',
+                autoRefresh: '自动刷新',
+                totalOverview: '总体概览',
+                trendChart: '趋势图 (最近 30 天)',
+                loading: '加载中...',
+                loadingData: '加载数据...',
+                noData: '今天没有可用数据',
+                searchPlaceholder: '搜索消息...',
+                allTools: '全部工具',
+                openclaw: 'Openclaw',
+                claude: 'Claude',
+                qwen: 'Qwen',
+                dateLabel: '日期',
+                toolLabel: '工具',
+                searchLabel: '搜索',
+                applyBtn: '应用',
+                roleLabel: '角色',
+                user: '用户',
+                assistant: 'AI 回复',
+                system: '系统',
+                noMessagesFound: '没有找到符合条件的消息',
+                openclawMessagesNotAvailable: 'Openclaw 无法查看消息',
+                openclawMessagesNotAvailableDetail: 'Openclaw 不支持查看单条消息。此功能仅适用于 Claude 和 Qwen。',
+                resetFilters: '重置筛选',
+                selectRole: '请至少选择一个角色来查看消息',
+                prevPage: '上一页',
+                nextPage: '下一页',
+                page: '第',
+                of: '页，共',
+                tokens: 'tokens',
+                model: '模型',
+                refreshMessages: '正在刷新消息...',
+                noNewMessages: '没有新消息，跳过刷新',
+                fetchCompleted: '数据抓取完成',
+                fetchedForTools: '成功抓取',
+                tools: '个工具的数据',
+                loadMessages: '从以下地址加载消息：',
+                messagesDataCount: '消息数据数量：',
+                messagesRoles: '消息角色：',
+                messagesDataReceived: '收到消息数据：',
+                renderMessagesCalled: 'renderMessages 被调用，data.messages.length：',
+                populatingMessagesDataMap: '正在填充 messagesDataMap...',
+                storingMsg: '存储消息：',
+                type: '类型：',
+                messagesDataMapKeys: 'messagesDataMap 已填充，keys：',
+                messagesDataMapEmpty: 'window.messagesDataMap 为空！',
+                toggleExpanded: 'toggleExpanded 被调用',
+                messageId: '消息 ID：',
+                contentExpanded: 'contentExpanded：',
+                preElement: 'preElement：',
+                foundMessage: '从 messagesDataMap 找到消息：',
+                msgContentLength: 'msg.content 长度：',
+                msgContent: 'msg.content：',
+                content: '内容',
+                total_requests: '请求次数',
+                input_tokens: '输入',
+                output_tokens: '输出',
+                total_tokens: '总计',
+                days_tracked: '天数',
+                avg: '平均',
+                date_range: '日期范围',
+                errorLoadingSummary: '加载摘要数据出错',
+                errorLoadingToday: '加载今日数据出错',
+                unknown: '未知',
+                todayUsage: "今日使用",
+                trendChartLabel: '趋势图 (最近 30 天)',
+                dateFilter: '日期',
+                toolFilter: '工具',
+                searchFilter: '搜索',
+                refresh: '刷新',
+                lastUpdated: '最后更新:',
+                sidebarUpdated: '最后更新:',
+                tableDate: '日期',
+                tableRequests: '请求',
+                tableInput: '输入',
+                tableOutput: '输出',
+                tableTotal: '总计',
+                noDataAvailable: '-',
+                dashboardTotalTokens: '工具 Token 总用量',
+                tokenUsageTrend: 'Token 使用趋势 (最近 30 天)',
+                chartTooltipTokens: 'tokens',
+                chartRequests: '请求',
+                errorLoadingData: '加载数据出错',
+                dataNotAvailable: '没有可用数据',
+                chartJsLoading: 'Chart.js 加载中...'
+            }
+        };
+
+        // Language state
+        let currentLang = 'en';
+
+        // Get translation function
+        function t(key) {
+            return i18n[currentLang][key] || i18n['en'][key] || key;
+        }
+
+        // Update pagination text based on current language
+        function updatePaginationText() {
+            document.getElementById('prev-page-text').textContent = t('prevPage');
+            document.getElementById('next-page-text').textContent = t('nextPage');
+            document.getElementById('page-text').textContent = t('page');
+            document.getElementById('of-text').textContent = t('of');
+        }
+
+        // Update dashboard text based on current language
+        function updateDashboardText() {
+            const todayUsage = document.getElementById('dashboard-today-usage');
+            const totalOverview = document.getElementById('dashboard-total-overview');
+            const totalOverviewText = document.getElementById('total-overview-text');
+            const trendChart = document.getElementById('dashboard-trend-chart');
+            const trendChartText = document.getElementById('trend-chart-text');
+            const loadingTodayText = document.getElementById('loading-today-text');
+            const loadingDataTodayText = document.getElementById('loading-data-today-text');
+            const loadingToolsText = document.getElementById('loading-tools-text');
+            const loadingDataToolsText = document.getElementById('loading-data-tools-text');
+
+            if (todayUsage) todayUsage.textContent = t('todayUsage');
+            if (totalOverview) totalOverview.textContent = t('totalOverview');
+            if (totalOverviewText) totalOverviewText.textContent = t('totalOverview');
+            if (trendChart) trendChart.textContent = t('trendChart');
+            if (trendChartText) trendChartText.textContent = t('trendChart');
+            if (loadingTodayText) loadingTodayText.textContent = t('loading');
+            if (loadingDataTodayText) loadingDataTodayText.textContent = t('loadingData');
+            if (loadingToolsText) loadingToolsText.textContent = t('loading');
+            if (loadingDataToolsText) loadingDataToolsText.textContent = t('loadingData');
+        }
+
+        // Update sidebar text based on current language
+        function updateSidebarText() {
+            const lastUpdatedLabel = document.getElementById('last-updated-label');
+            if (lastUpdatedLabel) lastUpdatedLabel.textContent = t('lastUpdated');
+        }
+
+        // Update messages text based on current language
+        function updateMessagesText() {
+            const messagesTitle = document.getElementById('messages-title');
+            const autoRefreshText = document.getElementById('auto-refresh-text');
+            const refreshBtnText = document.getElementById('refresh-btn-text');
+            const filterDateLabel = document.getElementById('filter-date-label');
+            const filterToolLabel = document.getElementById('filter-tool-label');
+            const filterSearchLabel = document.getElementById('filter-search-label');
+            const filterRoleLabel = document.getElementById('filter-role-label');
+            const filterAllTools = document.getElementById('filter-all-tools');
+            const filterOpenclaw = document.getElementById('filter-openclaw');
+            const filterClaude = document.getElementById('filter-claude');
+            const filterQwen = document.getElementById('filter-qwen');
+            const roleUserText = document.getElementById('role-user-text');
+            const roleAssistantText = document.getElementById('role-assistant-text');
+            const roleSystemText = document.getElementById('role-system-text');
+
+            if (messagesTitle) messagesTitle.textContent = t('messagesNav');
+            if (autoRefreshText) autoRefreshText.textContent = t('autoRefresh');
+            if (refreshBtnText) refreshBtnText.textContent = t('refreshBtn');
+            if (filterDateLabel) filterDateLabel.textContent = t('dateFilter');
+            if (filterToolLabel) filterToolLabel.textContent = t('toolFilter');
+            if (filterSearchLabel) filterSearchLabel.textContent = t('searchFilter');
+            if (filterRoleLabel) filterRoleLabel.textContent = t('roleLabel');
+            if (filterAllTools) filterAllTools.textContent = t('allTools');
+            if (filterOpenclaw) filterOpenclaw.textContent = t('openclaw');
+            if (filterClaude) filterClaude.textContent = t('claude');
+            if (filterQwen) filterQwen.textContent = t('qwen');
+            if (roleUserText) roleUserText.textContent = t('user');
+            if (roleAssistantText) roleAssistantText.textContent = t('assistant');
+            if (roleSystemText) roleSystemText.textContent = t('system');
+
+            // Update search placeholder
+            const searchFilter = document.getElementById('search-filter');
+            if (searchFilter) searchFilter.placeholder = t('searchPlaceholder');
+        }
+
+        // Switch language function
+        function switchLang(lang) {
+            currentLang = lang;
+            // Update button text
+            const langBtn = document.getElementById('lang-switch-btn');
+            if (langBtn) {
+                langBtn.textContent = lang === 'en' ? '中文' : 'English';
+            }
+            // Re-render sidebar navigation
+            renderSidebarNav();
+            // Update sidebar text
+            updateSidebarText();
+            // Update pagination text
+            updatePaginationText();
+            // Update dashboard text if visible
+            if (document.getElementById('dashboard-section').style.display !== 'none') {
+                updateDashboardText();
+                loadSummary();  // Reload summary cards with new language
+                loadToday();
+                loadTotalChart();
+                loadTrendChart();
+            }
+            // Update messages text if visible
+            if (document.getElementById('messages-section').style.display !== 'none') {
+                updateMessagesText();
+                loadMessages();
+            }
+            console.log('Language switched to:', lang);
+        }
+
+        // Render sidebar navigation with translations
+        function renderSidebarNav() {
+            const navDashboard = document.getElementById('nav-dashboard');
+            const navMessages = document.getElementById('nav-messages');
+            const sidebarTitle = document.getElementById('sidebar-title');
+            if (navDashboard) {
+                navDashboard.innerHTML = `<i class="bi bi-bar-chart-line"></i> ${t('dashboardNav')}`;
+            }
+            if (navMessages) {
+                navMessages.innerHTML = `<i class="bi bi-chat-dots"></i> ${t('messagesNav')}`;
+            }
+            if (sidebarTitle) {
+                sidebarTitle.textContent = t('sidebarTitle');
+            }
+        }
+
         // Store summary data for reuse to avoid duplicate API calls
         let summaryDataForChart = null;
+        let currentMessagesPage = 1;
+        let currentMessagesTotalPages = 1;
+        let autoRefreshInterval = null;
+        let isAutoRefreshing = false;
+        let currentMessageCount = 0; // Track current message count to avoid unnecessary refresh
+        let lastFetchTimestamp = 0; // Track last fetch time
 
         // Color palette for each tool (consistent across all charts)
         const toolColors = {
@@ -72,246 +846,6 @@
             'claude': { border: 'rgba(75, 192, 192, 1)', background: 'rgba(75, 192, 192, 0.2)', card: 'bg-success' },
             'qwen': { border: 'rgba(54, 162, 235, 1)', background: 'rgba(54, 162, 235, 0.2)', card: 'bg-info' }
         };
-
-        // Load today's usage
-        async function loadToday() {
-            const container = document.getElementById('today-cards');
-            // Clear loading text first
-            container.innerHTML = '';
-            try {
-                const response = await fetch('/api/today');
-                const data = await response.json();
-
-                if (data.length === 0) {
-                    container.innerHTML = '<div class="col-12 text-center">No data available for today</div>';
-                    return;
-                }
-
-                let html = '';
-                data.forEach(item => {
-                    const colors = toolColors[item.tool_name] || { card: 'bg-secondary' };
-
-                    html += `
-                        <div class="col-md-4">
-                            <div class="card usage-card ${colors.card} text-white">
-                                <div class="card-body">
-                                    <h6 class="card-subtitle mb-2 text-white-50">${item.tool_name.toUpperCase()}</h6>
-                                    <h3 class="card-title">${formatTokens(item.tokens_used)}</h3>
-                                    <p class="card-text mb-1">Date: ${item.date}</p>
-                                    ${item.request_count > 0 ? `<p class="card-text">Requests: ${item.request_count}</p>` : ''}
-                                    ${item.input_tokens > 0 ? `<p class="card-text">Input: ${formatTokens(item.input_tokens)}</p>` : ''}
-                                    ${item.output_tokens > 0 ? `<p class="card-text">Output: ${formatTokens(item.output_tokens)}</p>` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                });
-                container.innerHTML = html;
-            } catch (error) {
-                console.error('Error loading today data:', error);
-                container.innerHTML = '<div class="col-12 text-center text-danger">Error loading today data</div>';
-            }
-        }
-
-        // Load Total Overview chart (pie chart)
-        async function loadTotalChart() {
-            // Clear loading text from tools-info if it exists
-            const toolsContainer = document.getElementById('tools-info');
-            if (toolsContainer && toolsContainer.querySelector('.text-muted')) {
-                toolsContainer.innerHTML = '';
-            }
-
-            const container = document.getElementById('totalChart');
-            try {
-                // Use cached summary data if available
-                if (summaryDataForChart === null) {
-                    const response = await fetch('/api/summary');
-                    summaryDataForChart = await response.json();
-                }
-
-                if (Object.keys(summaryDataForChart).length === 0) {
-                    container.parentElement.innerHTML = '<p class="text-center text-muted">No data available</p>';
-                    return;
-                }
-
-                const ctx = document.getElementById('totalChart').getContext('2d');
-
-                const labels = Object.keys(summaryDataForChart);
-                const dataValues = Object.values(summaryDataForChart).map(item => item.total_tokens);
-
-                // Color palette for each tool
-                const backgroundColors = labels.map(tool => {
-                    return toolColors[tool].background;
-                });
-                const borderColors = labels.map(tool => {
-                    return toolColors[tool].border;
-                });
-
-                new Chart(ctx, {
-                    type: 'pie',
-                    data: {
-                        labels: labels.map(tool => tool.toUpperCase()),
-                        datasets: [{
-                            label: 'Total Tokens',
-                            data: dataValues,
-                            backgroundColor: backgroundColors,
-                            borderColor: borderColors,
-                            borderWidth: 2
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            title: { display: true, text: 'Total Token Usage by Tool', font: { size: 14 } },
-                            legend: { position: 'bottom' },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        let label = context.label || '';
-                                        if (label) {
-                                            label += ': ';
-                                        }
-                                        if (context.parsed !== null) {
-                                            label += formatTokens(context.parsed);
-                                        }
-                                        return label + ' tokens';
-                                    },
-                                    afterBody: function(context) {
-                                        // Show request count if available in data
-                                        const toolName = context[0].label.toLowerCase();
-                                        const stats = summaryDataForChart[toolName];
-                                        if (stats && stats.total_requests) {
-                                            return 'Requests: ' + stats.total_requests;
-                                        }
-                                        return '';
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error('Error loading total chart:', error);
-                const container = document.getElementById('totalChart');
-                container.parentElement.innerHTML = '<p class="text-center text-muted">No data available</p>';
-            }
-        }
-
-        // Load summary data
-        async function loadSummary() {
-            const container = document.getElementById('tools-info');
-            // Clear loading text first
-            container.innerHTML = '';
-            try {
-                // Use cached summary data if available
-                let data;
-                if (summaryDataForChart === null) {
-                    const response = await fetch('/api/summary');
-                    data = await response.json();
-                    summaryDataForChart = data;
-                } else {
-                    data = summaryDataForChart;
-                }
-
-                if (Object.keys(data).length === 0) {
-                    container.innerHTML = '<div class="col-12 text-center">No data available</div>';
-                    return;
-                }
-
-                let html = '';
-                Object.entries(data).forEach(([tool, stats]) => {
-                    const colors = toolColors[tool] || { card: 'bg-secondary' };
-
-                    html += `
-                        <div class="col-md-4">
-                            <div class="card usage-card ${colors.card} text-white">
-                                <div class="card-body">
-                                    <h5 class="card-title">${tool.toUpperCase()}</h5>
-                                    <p class="card-text">
-                                        <strong>${formatTokens(stats.total_tokens)}</strong> total<br>
-                                        ${stats.days_count} days tracked<br>
-                                        Avg: ${formatTokens(stats.avg_tokens)}/day
-                                        ${stats.total_requests ? `<br>Requests: ${stats.total_requests}${stats.avg_requests ? ' (avg ' + Math.round(stats.avg_requests) + '/day)' : ''}` : ''}
-                                    </p>
-                                    <small>Date range: ${stats.first_date} to ${stats.last_date}</small>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                });
-                container.innerHTML = html;
-            } catch (error) {
-                console.error('Error loading summary:', error);
-                container.innerHTML = '<div class="col-12 text-center text-danger">Error loading summary data</div>';
-            }
-        }
-
-        // Load trend chart
-        async function loadTrendChart() {
-            const container = document.getElementById('trendChart');
-            // Clear loading text from tools-info if it exists (for total chart loading message)
-            const toolsContainer = document.getElementById('tools-info');
-            if (toolsContainer && toolsContainer.querySelector('.text-muted')) {
-                toolsContainer.innerHTML = '';
-            }
-            try {
-                const response = await fetch('/api/range?start=' + getDaysAgo(30) + '&end=' + getToday());
-                const data = await response.json();
-
-                if (data.length === 0) {
-                    container.parentElement.innerHTML = '<p class="text-center text-muted">No data available</p>';
-                    return;
-                }
-
-                const ctx = document.getElementById('trendChart').getContext('2d');
-
-                // Group data by date
-                const dates = [...new Set(data.map(d => d.date))].sort().slice(-14); // Last 14 days
-                const tools = [...new Set(data.map(d => d.tool_name))];
-
-                const datasets = tools.map(tool => ({
-                    label: tool.toUpperCase(),
-                    data: dates.map(date => {
-                        const entry = data.find(d => d.date === date && d.tool_name === tool);
-                        return entry ? entry.tokens_used : 0;
-                    }),
-                    tension: 0.4,
-                    borderColor: toolColors[tool].border,
-                    backgroundColor: toolColors[tool].background,
-                    pointBackgroundColor: toolColors[tool].border,
-                    pointBorderColor: '#fff',
-                    pointBorderWidth: 2
-                }));
-
-                new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: dates,
-                        datasets: datasets
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            title: { display: true, text: 'Token Usage Trend (Last 14 Days)' }
-                        },
-                        scales: {
-                            y: {
-                                suggestedMin: 0,
-                                ticks: {
-                                    callback: function(value) {
-                                        return formatTokens(value);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error('Error loading trend chart:', error);
-                const container = document.getElementById('trendChart');
-                container.parentElement.innerHTML = '<p class="text-center text-muted">No data available</p>';
-            }
-        }
 
         // Helper functions
         function formatTokens(tokens) {
@@ -336,13 +870,786 @@
             return d.toISOString().split('T')[0];
         }
 
-        // Load data on page load
+        // Section switching function
+        function switchSection(section) {
+            // Update sidebar navigation
+            const navDashboard = document.getElementById('nav-dashboard');
+            const navMessages = document.getElementById('nav-messages');
+            if (navDashboard) {
+                navDashboard.classList.remove('active');
+            }
+            if (navMessages) {
+                navMessages.classList.remove('active');
+            }
+
+            // Show/hide sections
+            document.getElementById('dashboard-section').style.display = section === 'dashboard' ? 'block' : 'none';
+            document.getElementById('messages-section').style.display = section === 'messages' ? 'block' : 'none';
+
+            // Load data and update text if needed
+            if (section === 'dashboard') {
+                if (navDashboard) navDashboard.classList.add('active');
+                if (!summaryDataForChart) {
+                    loadToday();
+                    loadTotalChart();
+                    loadTrendChart();
+                }
+                // Update dashboard text based on current language
+                updateDashboardText();
+            } else if (section === 'messages') {
+                if (navMessages) navMessages.classList.add('active');
+                updateMessagesText();
+                loadMessages();
+            }
+        }
+
+        // Dashboard Functions
+        async function loadToday() {
+            const container = document.getElementById('today-cards');
+            container.innerHTML = '<div class="col-12 text-center"><div class="spinner-border" role="status"><span class="visually-hidden">' + t('loading') + '</span></div></div>';
+
+            try {
+                const response = await fetch('/api/today');
+                const data = await response.json();
+
+                if (data.length === 0) {
+                    container.innerHTML = '<div class="col-12 text-center text-muted">' + t('noData') + '</div>';
+                    return;
+                }
+
+                let html = '';
+                data.forEach(item => {
+                    const colors = toolColors[item.tool_name] || { card: 'bg-secondary' };
+
+                    html += `
+                        <div class="col-md-4">
+                            <div class="card usage-card ${colors.card} text-white">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-3 text-white-50">${item.tool_name.toUpperCase()}</h6>
+                                    <h3 class="card-title mb-3">${formatTokens(item.tokens_used)} <small class="fs-6">${t('tokens')}</small></h3>
+                                    <p class="card-text mb-1"><strong>${t('tableDate')}:</strong> ${item.date}</p>
+                                    ${item.request_count > 0 ? `<p class="card-text mb-1"><strong>${t('tableRequests')}:</strong> ${item.request_count}</p>` : `<p class="card-text mb-1"><strong>${t('tableRequests')}:</strong> ${t('noDataAvailable')}</p>`}
+                                    ${item.input_tokens > 0 ? `<p class="card-text mb-1"><strong>${t('tableInput')}:</strong> ${formatTokens(item.input_tokens)} <small class="fs-6">${t('tokens')}</small></p>` : ''}
+                                    ${item.output_tokens > 0 ? `<p class="card-text mb-1"><strong>${t('tableOutput')}:</strong> ${formatTokens(item.output_tokens)} <small class="fs-6">${t('tokens')}</small></p>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading today data:', error);
+                container.innerHTML = '<div class="col-12 text-center text-danger">' + t('errorLoadingToday') + '</div>';
+            }
+        }
+
+        async function loadTotalChart() {
+            const toolsContainer = document.getElementById('tools-info');
+            if (toolsContainer && toolsContainer.querySelector('.text-muted')) {
+                toolsContainer.innerHTML = '';
+            }
+
+            const container = document.getElementById('totalChart');
+
+            // Check if Chart.js is loaded first
+            if (typeof Chart === 'undefined') {
+                console.log('Chart.js not loaded yet');
+                setTimeout(() => loadTotalChart(), 100);
+                return;
+            }
+
+            try {
+
+                if (summaryDataForChart === null) {
+                    const response = await fetch('/api/summary');
+                    summaryDataForChart = await response.json();
+                }
+
+                if (Object.keys(summaryDataForChart).length === 0) {
+                    container.parentElement.innerHTML = '<p class="text-center text-muted">' + t('dataNotAvailable') + '</p>';
+                    return;
+                }
+
+                const ctx = document.getElementById('totalChart').getContext('2d');
+                const labels = Object.keys(summaryDataForChart);
+                const dataValues = Object.values(summaryDataForChart).map(item => item.total_tokens);
+                console.log('Total Chart - Labels:', labels, 'Values:', dataValues);
+
+                const backgroundColors = labels.map(tool => toolColors[tool].background);
+                const borderColors = labels.map(tool => toolColors[tool].border);
+
+                console.log('Creating chart with labels:', labels, 'values:', dataValues);
+
+                // Destroy existing chart if it exists and is a valid Chart.js instance
+                if (window.totalChart && typeof window.totalChart.destroy === 'function') {
+                    window.totalChart.destroy();
+                }
+
+                console.log('About to create new Chart...');
+
+                window.totalChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: labels.map(tool => tool.toUpperCase()),
+                        datasets: [{
+                            label: t('total_tokens'),
+                            data: dataValues,
+                            backgroundColor: backgroundColors,
+                            borderColor: borderColors,
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: { display: true, text: t('dashboardTotalTokens'), font: { size: 14 } },
+                            legend: { position: 'bottom' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) label += ': ';
+                                        if (context.parsed !== null) {
+                                            label += formatTokens(context.parsed);
+                                        }
+                                        return label + ' ' + t('tokens');
+                                    },
+                                    afterBody: function(context) {
+                                        const toolName = context[0].label.toLowerCase();
+                                        const stats = summaryDataForChart[toolName];
+                                        if (stats && stats.total_requests) {
+                                            return t('tableRequests') + ': ' + stats.total_requests;
+                                        }
+                                        return '';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading total chart:', error);
+                const toolsContainer = document.getElementById('tools-info');
+                if (toolsContainer) {
+                    toolsContainer.innerHTML = '<div class="col-12 text-center text-muted">' + t('errorLoadingData') + '</div>';
+                }
+            }
+        }
+
+        async function loadSummary() {
+            const container = document.getElementById('tools-info');
+            container.innerHTML = '<div class="col-12 text-center"><div class="spinner-border" role="status"><span class="visually-hidden">' + t('loading') + '</span></div></div>';
+
+            try {
+                let data;
+                if (summaryDataForChart === null) {
+                    const response = await fetch('/api/summary');
+                    data = await response.json();
+                    summaryDataForChart = data;
+                } else {
+                    data = summaryDataForChart;
+                }
+
+                if (Object.keys(data).length === 0) {
+                    container.innerHTML = '<div class="col-12 text-center">' + t('noData') + '</div>';
+                    return;
+                }
+
+                let html = '';
+                Object.entries(data).forEach(([tool, stats]) => {
+                    const colors = toolColors[tool] || { card: 'bg-secondary' };
+
+                    html += `
+                        <div class="col-md-4">
+                            <div class="card usage-card ${colors.card} text-white">
+                                <div class="card-body">
+                                    <h5 class="card-title">${tool.toUpperCase()}</h5>
+                                    <p class="card-text">
+                                        <strong>${formatTokens(stats.total_tokens)}</strong> ${t('tokens')}<br>
+                                        ${stats.days_count} ${t('days_tracked')}<br>
+                                        ${t('avg')}: ${formatTokens(stats.avg_tokens)}/day<br>
+                                        <strong>${t('tableRequests')}:</strong> ${stats.total_requests > 0 ? stats.total_requests : t('noDataAvailable')}
+                                    </p>
+                                    <small>${t('date_range')}: ${stats.first_date} - ${stats.last_date}</small>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading summary:', error);
+                container.innerHTML = '<div class="col-12 text-center text-danger">' + t('errorLoadingSummary') + '</div>';
+            }
+        }
+
+        async function loadTrendChart() {
+            const container = document.getElementById('trendChart');
+            try {
+                // Check if Chart.js is loaded
+                if (typeof Chart === 'undefined') {
+                    container.parentElement.innerHTML = '<p class="text-center text-muted">' + t('chartJsLoading') + '</p>';
+                    return;
+                }
+
+                const response = await fetch('/api/range?start=' + getDaysAgo(30) + '&end=' + getToday());
+                const data = await response.json();
+
+                if (data.length === 0) {
+                    container.parentElement.innerHTML = '<p class="text-center text-muted">' + t('dataNotAvailable') + '</p>';
+                    return;
+                }
+
+                const ctx = document.getElementById('trendChart').getContext('2d');
+                const dates = [...new Set(data.map(d => d.date))].sort().slice(-30);
+                const tools = [...new Set(data.map(d => d.tool_name))];
+
+                const datasets = tools.map(tool => ({
+                    label: tool.toUpperCase(),
+                    data: dates.map(date => {
+                        const entry = data.find(d => d.date === date && d.tool_name === tool);
+                        return entry ? entry.tokens_used : 0;
+                    }),
+                    tension: 0.4,
+                    borderColor: toolColors[tool].border,
+                    backgroundColor: toolColors[tool].background,
+                    pointBackgroundColor: toolColors[tool].border,
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                }));
+
+                if (window.trendChart && typeof window.trendChart.destroy === 'function') {
+                    window.trendChart.destroy();
+                }
+
+                window.trendChart = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: dates, datasets: datasets },
+                    options: {
+                        responsive: true,
+                        plugins: { title: { display: true, text: t('tokenUsageTrend') } },
+                        scales: {
+                            y: {
+                                suggestedMin: 0,
+                                ticks: { callback: function(value) { return formatTokens(value); } }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading trend chart:', error);
+                const container = document.getElementById('trendChart');
+                container.parentElement.innerHTML = '<p class="text-center text-muted">' + t('dataNotAvailable') + '</p>';
+            }
+        }
+
+        // Navigation Functions - kept for backward compatibility
+        function switchPage(pageName) {
+            switchSection(pageName);
+        }
+
+        // Message Functions
+        async function loadMessages() {
+            const container = document.getElementById('messages-container');
+            const date = document.getElementById('date-filter').value;
+            const tool = document.getElementById('tool-filter').value;
+            const search = document.getElementById('search-filter').value;
+
+            // Save auto-refresh state before reloading
+            const wasAutoRefreshing = isAutoRefreshing;
+            if (wasAutoRefreshing) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+
+            // Get selected roles
+            const roles = [];
+            if (document.getElementById('role-user').checked) roles.push('user');
+            if (document.getElementById('role-assistant').checked) roles.push('assistant');
+            if (document.getElementById('role-system').checked) roles.push('system');
+
+            // If no roles selected, show message and stop
+            if (roles.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-x-circle" style="font-size: 3rem; opacity: 0.3;"></i>
+                        <p class="mt-3">${t('selectRole')}</p>
+                    </div>
+                `;
+                const paginationControls = document.getElementById('pagination-controls');
+                if (paginationControls) {
+                    paginationControls.style.display = 'none';
+                }
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="text-center py-5">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">${t('loading')}</span>
+                    </div>
+                    <p class="mt-2">${t('loadingData')}</p>
+                </div>
+            `;
+
+            try {
+                const rolesParam = roles.length > 0 ? roles.join(',') : '';
+                const url = `/api/messages?date=${date}&tool=${tool || ''}&roles=${rolesParam}&search=${search || ''}&page=1&limit=50`;
+                console.log('Loading messages from:', url);
+                const response = await fetch(url);
+                const data = await response.json();
+                console.log('Messages data received:', data);
+                console.log('Messages data count:', data.messages ? data.messages.length : 0);
+                console.log('Messages roles:', data.messages ? data.messages.map(m => m.role) : []);
+
+                // Check if tool is openclaw and no messages found
+                if ((!data.messages || data.messages.length === 0) && tool === 'openclaw') {
+                    const paginationControls = document.getElementById('pagination-controls');
+                    container.innerHTML = `
+                        <div class="alert alert-info py-4">
+                            <div class="text-center">
+                                <i class="bi bi-info-circle" style="font-size: 3rem; opacity: 0.3;"></i>
+                                <h5 class="mt-3">${t('openclawMessagesNotAvailable')}</h5>
+                                <p class="mb-0">${t('openclawMessagesNotAvailableDetail')}</p>
+                            </div>
+                        </div>
+                    `;
+                    if (paginationControls) {
+                        paginationControls.style.display = 'none';
+                    }
+                    return;
+                }
+
+                renderMessages(data);
+
+                // Restore auto-refresh state if it was enabled
+                if (wasAutoRefreshing) {
+                    isAutoRefreshing = true;
+                    autoRefreshInterval = setInterval(() => {
+                        fetchData();
+                    }, 10000);
+                }
+            } catch (error) {
+                console.error('Error loading messages:', error);
+                container.innerHTML = '<div class="alert alert-danger">Error loading messages: ' + error.message + '</div>';
+
+                // Restore auto-refresh state even on error
+                if (wasAutoRefreshing) {
+                    isAutoRefreshing = true;
+                    autoRefreshInterval = setInterval(() => {
+                        fetchData();
+                    }, 10000);
+                }
+            }
+        }
+
+        function renderMessages(data) {
+            const container = document.getElementById('messages-container');
+            const paginationControls = document.getElementById('pagination-controls');
+
+            currentMessagesPage = data.page;
+            currentMessagesTotalPages = data.total_pages;
+
+            console.log('renderMessages called, data.messages.length:', data.messages ? data.messages.length : 0);
+
+            // Store full messages data in a global variable for access by toggleExpanded
+            window.messagesDataMap = {};
+            console.log('Populating messagesDataMap...');
+            data.messages.forEach(msg => {
+                console.log('Storing msg:', msg.id, 'type:', typeof msg.id);
+                window.messagesDataMap[msg.id] = msg;
+            });
+            console.log('messagesDataMap populated, keys:', Object.keys(window.messagesDataMap));
+
+            if (!data.messages || data.messages.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
+                        <p class="mt-3">${t('noMessagesFound')}</p>
+                        <button class="btn btn-outline-primary" onclick="resetFilters()">${t('resetFilters')}</button>
+                    </div>
+                `;
+                paginationControls.style.display = 'none';
+                return;
+            }
+
+            let html = '';
+            data.messages.forEach(msg => {
+                const role = msg.role || 'system';
+                const timestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleString() : t('unknown');
+                const tokens = msg.tokens_used || 0;
+
+                // Get content and parse if it's JSON
+                let content = msg.content || '';
+                let contentText = '';
+
+                // For user messages, show raw content directly
+                // For assistant/system messages, try to parse JSON and extract text
+                if (role === 'user' || role === 'system') {
+                    // Show raw content for user/system messages
+                    contentText = content;
+                } else if (typeof content === 'string') {
+                    try {
+                        const parsed = JSON.parse(content);
+                        if (Array.isArray(parsed)) {
+                            // Extract text from array of content parts for assistant messages
+                            contentText = parsed.map(item => {
+                                if (typeof item === 'object') {
+                                    if (item.text) return item.text;
+                                    if (item.content && typeof item.content === 'string') return item.content;
+                                    if (item.parts && Array.isArray(item.parts)) {
+                                        // Flatten parts
+                                        return item.parts.map(p => p.text || JSON.stringify(p)).join('\n');
+                                    }
+                                    return JSON.stringify(item);
+                                }
+                                return String(item);
+                            }).join('\n\n');
+                        } else if (typeof parsed === 'object') {
+                            contentText = JSON.stringify(parsed, null, 2);
+                        } else {
+                            contentText = parsed;
+                        }
+                    } catch (e) {
+                        contentText = content;
+                    }
+                } else if (typeof content === 'object') {
+                    contentText = JSON.stringify(content, null, 2);
+                } else {
+                    contentText = content;
+                }
+
+                // Truncate content for display
+                const displayContent = contentText.length > 200 ? contentText.substring(0, 200) + '...' : contentText;
+
+                // Create content HTML for display
+                const contentHtml = escapeHtmlForDisplay(displayContent);
+
+                html += `
+                    <div class="message-item" data-id="${msg.id}" onclick="toggleExpanded(this)">
+                        <div class="message-header">
+                            <div class="message-role">
+                                <span class="role-badge ${role}">${role}</span>
+                            </div>
+                            <div class="message-content">
+                                <div class="message-content-truncated">${contentHtml}</div>
+                            </div>
+                            ${tokens > 0 ? `<div class="message-tokens ms-2">
+                                <i class="bi bi-token"></i> ${formatTokens(tokens)} ${t('tokens')}
+                            </div>` : ''}
+                            <div class="ms-2">
+                                <i class="bi bi-chevron-down transition-transform" id="chevron-${msg.id}"></i>
+                            </div>
+                        </div>
+                        <div class="message-content-expanded" id="content-${msg.id}" style="display: none;">
+                            <pre class="mb-0" style="white-space: pre-wrap; word-break: break-all; font-size: 0.85rem;"></pre>
+                        </div>
+                        <div class="message-footer">
+                            <small>${timestamp}</small>
+                            ${msg.model ? `<small class="text-muted">Model: ${msg.model}</small>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+
+            // Update pagination
+            if (currentMessagesTotalPages > 1) {
+                updatePagination();
+                paginationControls.style.display = 'flex';
+            } else {
+                paginationControls.style.display = 'none';
+            }
+        }
+
+        function escapeHtmlForDisplay(text) {
+            if (typeof text !== 'string') return text;
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML
+                .replace(/ /g, '&nbsp;')
+                .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;')
+                .replace(/\n/g, '<br>');
+        }
+
+        function toggleExpanded(element) {
+            console.log('toggleExpanded called');
+            console.log('window.messagesDataMap:', window.messagesDataMap);
+            const contentExpanded = element.querySelector('.message-content-expanded');
+            const preElement = contentExpanded ? contentExpanded.querySelector('pre') : null;
+            const chevron = element.querySelector('#chevron-' + element.dataset.id);
+            const msgId = element.dataset.id;
+
+            console.log('message ID:', msgId, 'type:', typeof msgId);
+            console.log('messagesDataMap.keys():', Object.keys(window.messagesDataMap));
+            console.log('messagesDataMap[msgId]:', window.messagesDataMap[msgId]);
+            const msg = window.messagesDataMap[msgId];
+            console.log('Found message from messagesDataMap:', !!msg, 'msg:', msg);
+            if (msg) {
+                console.log('msg.content length:', msg.content ? msg.content.length : 0, 'msg.content:', msg.content);
+                console.log('msg.full_entry exists:', !!msg.full_entry);
+                if (msg.full_entry) {
+                    console.log('msg.full_entry length:', msg.full_entry.length);
+                }
+            }
+
+            // If content is not yet loaded, load it from the stored messages data
+            if (preElement && !preElement.dataset.loaded && contentExpanded) {
+                // Get full content from the global messages data map
+                // Prefer full_entry if available (contains complete original JSON)
+                let formattedContent = '';
+                if (msg) {
+                    // Use full_entry if available (complete original JSON entry)
+                    let contentStr = '';
+                    if (msg.full_entry) {
+                        contentStr = msg.full_entry;
+                    } else {
+                        contentStr = msg.content || '';
+                    }
+
+                    // Try to parse as JSON and re-stringify with indentation for readability
+                    try {
+                        const parsed = JSON.parse(contentStr);
+                        formattedContent = JSON.stringify(parsed, null, 2);
+                    } catch (e) {
+                        // Not valid JSON, display as-is
+                        formattedContent = contentStr;
+                    }
+                }
+
+                preElement.textContent = formattedContent;
+                preElement.dataset.loaded = 'true';
+            }
+
+            if (contentExpanded) {
+                const isHidden = contentExpanded.style.display === 'none' || !contentExpanded.style.display;
+                console.log('isHidden:', isHidden);
+                contentExpanded.style.display = isHidden ? 'block' : 'none';
+                if (chevron) {
+                    chevron.classList.toggle('rotate-180', !isHidden);
+                }
+                element.classList.toggle('expanded', isHidden);
+            }
+        }
+
+        function applyFilters() {
+            currentMessagesPage = 1;
+            loadMessages();
+        }
+
+        function refreshMessages() {
+            applyFilters();
+        }
+
+        function toggleAutoRefresh() {
+            const checkbox = document.getElementById('auto-refresh');
+            isAutoRefreshing = checkbox.checked;
+
+            if (isAutoRefreshing) {
+                console.log('Auto-refresh enabled');
+                // Fetch new data first
+                fetchData();
+
+                // Check for new data every 10 seconds
+                // Only refresh the display when new data is successfully fetched
+                autoRefreshInterval = setInterval(() => {
+                    fetchData();
+                }, 10000);
+            } else {
+                console.log('Auto-refresh disabled');
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
+            }
+        }
+
+        async function fetchData() {
+            const now = Date.now();
+            // Only fetch if last fetch was more than 10 seconds ago
+            if (now - lastFetchTimestamp < 10000) {
+                return;
+            }
+            lastFetchTimestamp = now;
+
+            try {
+                const response = await fetch('/api/fetch');
+                const data = await response.json();
+                console.log('Data fetch completed:', data);
+                // Show a toast notification if fetch was successful
+                const successCount = Object.values(data).filter(d => d.success).length;
+                if (successCount > 0) {
+                    console.log(`Successfully fetched data for ${successCount} tool(s)`);
+                    // After successful fetch, check if message count changed
+                    // by loading messages and comparing count
+                    const container = document.getElementById('messages-container');
+                    const date = document.getElementById('date-filter').value;
+                    const tool = document.getElementById('tool-filter').value;
+                    const search = document.getElementById('search-filter').value;
+
+                    // Get selected roles
+                    const roles = [];
+                    if (document.getElementById('role-user').checked) roles.push('user');
+                    if (document.getElementById('role-assistant').checked) roles.push('assistant');
+                    if (document.getElementById('role-system').checked) roles.push('system');
+
+                    const rolesParam = roles.length > 0 ? roles.join(',') : '';
+                    const url = `/api/messages?date=${date}&tool=${tool || ''}&roles=${rolesParam}&search=${search || ''}&page=1&limit=50`;
+
+                    const response2 = await fetch(url);
+                    const newData = await response2.json();
+
+                    console.log(`Current count: ${currentMessageCount}, New count: ${newData.total}`);
+
+                    // Only reload if message count changed
+                    if (currentMessageCount === 0 || newData.total > currentMessageCount) {
+                        console.log(`Message count changed from ${currentMessageCount} to ${newData.total}, reloading...`);
+                        currentMessageCount = newData.total;
+                        loadMessages();
+                    } else {
+                        console.log('No new messages, skipping refresh');
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        function resetFilters() {
+            document.getElementById('date-filter').value = getToday();
+            document.getElementById('tool-filter').value = '';
+            document.getElementById('search-filter').value = '';
+            document.getElementById('role-user').checked = true;
+            document.getElementById('role-assistant').checked = false;
+            document.getElementById('role-system').checked = false;
+            loadMessages();
+        }
+
+        function updatePagination() {
+            document.getElementById('current-page').textContent = currentMessagesPage;
+            document.getElementById('total-pages').textContent = currentMessagesTotalPages;
+
+            const prevItem = document.getElementById('prev-page');
+            const nextItem = document.getElementById('next-page');
+
+            if (currentMessagesPage === 1) {
+                prevItem.classList.add('disabled');
+            } else {
+                prevItem.classList.remove('disabled');
+            }
+
+            if (currentMessagesPage === currentMessagesTotalPages) {
+                nextItem.classList.add('disabled');
+            } else {
+                nextItem.classList.remove('disabled');
+            }
+        }
+
+        async function prevPage() {
+            if (currentMessagesPage > 1) {
+                await goToPage(currentMessagesPage - 1);
+            }
+        }
+
+        async function nextPage() {
+            if (currentMessagesPage < currentMessagesTotalPages) {
+                await goToPage(currentMessagesPage + 1);
+            }
+        }
+
+        async function goToPage(page) {
+            const container = document.getElementById('messages-container');
+            const date = document.getElementById('date-filter').value;
+            const tool = document.getElementById('tool-filter').value;
+            const search = document.getElementById('search-filter').value;
+
+            const roles = [];
+            if (document.getElementById('role-user').checked) roles.push('user');
+            if (document.getElementById('role-assistant').checked) roles.push('assistant');
+            if (document.getElementById('role-system').checked) roles.push('system');
+
+            const rolesParam = roles.length > 0 ? roles.join(',') : '';
+            const url = `/api/messages?date=${date}&tool=${tool || ''}&roles=${rolesParam}&search=${search || ''}&page=${page}&limit=50`;
+
+            container.innerHTML = '<div class="text-center py-3"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                renderMessages(data);
+
+                // Merge messages into global map (don't overwrite)
+                console.log('Populating messagesDataMap for page', page);
+                data.messages.forEach(msg => {
+                    if (!window.messagesDataMap[msg.id]) {
+                        window.messagesDataMap[msg.id] = msg;
+                    }
+                });
+                console.log('messagesDataMap size:', Object.keys(window.messagesDataMap).length);
+            } catch (error) {
+                console.error('Error loading messages:', error);
+                container.innerHTML = '<div class="alert alert-danger">Error loading messages</div>';
+            }
+        }
+
+        // Sidebar toggle for mobile
+        document.getElementById('toggle-sidebar').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.toggle('show');
+        });
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', function(e) {
+            const sidebar = document.getElementById('sidebar');
+            const toggleBtn = document.getElementById('toggle-sidebar');
+            if (window.innerWidth <= 768 && sidebar.classList.contains('show')) {
+                if (!sidebar.contains(e.target) && !toggleBtn.contains(e.target)) {
+                    sidebar.classList.remove('show');
+                }
+            }
+        });
+
+        // Align sidebar content when menu is toggled
+        document.getElementById('nav-dashboard').addEventListener('click', function() {
+            const content = document.getElementById('main-content');
+            if (window.innerWidth <= 768) {
+                content.classList.remove('mobile-shifted');
+            }
+        });
+
+        // Handle hash navigation
+        window.addEventListener('hashchange', function() {
+            if (window.location.hash === '#messages') {
+                switchPage('messages');
+            } else {
+                switchPage('dashboard');
+            }
+        });
+
+        // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
+            // Set initial text based on current language
+            updatePaginationText();
+            updateDashboardText();
+            updateMessagesText();
+            updateSidebarText();
+            renderSidebarNav();
+
             loadToday();
             loadTotalChart();
             loadSummary();
             loadTrendChart();
+            loadTrendChart();
+
+            // Check hash on initial load
+            if (window.location.hash === '#messages') {
+                switchSection('messages');
+            }
         });
+    </script>
+    <script>
+        //Debug: Check Chart.js availability
+        console.log('Chart.js available:', typeof Chart !== 'undefined');
     </script>
 </body>
 </html>
