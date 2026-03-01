@@ -5,11 +5,13 @@
 <a name="中文"></a>
 ## 中文
 
-一个统一的 AI 工具 token 用量追踪项目，支持 OpenClaw、Claude 和 Qwen。
+一个 AI 工具 token 用量追踪和分析项目，支持 OpenClaw、Claude 和 Qwen。
 
 ### 功能特点
 
-- **多工具支持**：追踪 OpenClaw、Claude、Qwen 等 AI 工具的 token 使用量
+- **用量追踪**：追踪 OpenClaw、Claude、Qwen 等 AI 工具的 token 使用量
+- **数据分析**：查看每日用量、历史趋势、工具对比
+- **Messages 分析**：查看单条消息详情（仅 Claude 和 Qwen，支持按角色、搜索筛选）
 - **Web 可视化**：基于 Flask 的 Web 界面，使用 Chart.js 展示数据趋势
 - **命令行工具**：通过 CLI 快速查询每日用量、历史数据和统计摘要
 - **自动收集**：定时从本地日志文件提取 token 使用数据
@@ -85,7 +87,11 @@ python3 cli.py summary
 python3 web.py
 ```
 
-访问 http://localhost:5000 查看可视化数据。
+访问 http://localhost:5001 查看可视化数据。
+
+**Web 界面功能：**
+- **Summary 页面**：查看各工具的用量摘要和趋势图
+- **Messages 页面**：查看单条消息详情（支持按日期、工具、角色、搜索词筛选）
 
 #### 生成邮件报告
 
@@ -99,6 +105,21 @@ python3 cli.py report
 - `GET /api/today` - 获取今天的用量
 - `GET /api/<tool_name>/<days>` - 获取指定工具 N 天内的用量
 - `GET /api/date/<date>` - 获取指定日期的用量
+- `GET /api/messages` - 获取消息列表（支持 filters）
+
+### Messages API
+
+```
+GET /api/messages?date=2025-03-01&tool=claude&roles=user,assistant&search=test&page=1&limit=50
+```
+
+参数：
+- `date` - 日期（YYYY-MM-DD）
+- `tool` - 工具名称（claude, qwen, openclaw）
+- `roles` - 角色筛选（user, assistant, system），逗号分隔
+- `search` - 搜索内容
+- `page` - 页码（默认 1）
+- `limit` - 每页数量（默认 50）
 
 ### cron 自动化
 
@@ -114,15 +135,17 @@ python3 cli.py report
 <a name="English"></a>
 ## English
 
-A unified AI tool token usage tracking project, supporting OpenClaw, Claude, and Qwen.
+An AI tool token usage tracking and analysis project, supporting OpenClaw, Claude, and Qwen.
 
 ### Features
 
-- **Multi-tool support**: Track token usage from OpenClaw, Claude, Qwen, and other AI tools
-- **Web visualization**: Flask-based web interface with Chart.js for data visualization
-- **CLI tool**: Query daily usage, historical data, and summary statistics via command line
-- **Automatic collection**: Scheduled extraction of token usage from local log files
-- **Email reports**: Daily usage reports sent via email
+- **Usage Tracking**: Track token usage from OpenClaw, Claude, Qwen, and other AI tools
+- **Data Analysis**: View daily usage, historical trends, and tool comparisons
+- **Messages Analysis**: View individual message details (Claude and Qwen only, filter by role and search)
+- **Web Visualization**: Flask-based web interface with Chart.js for data visualization
+- **CLI Tool**: Query daily usage, historical data, and summary statistics via command line
+- **Automatic Collection**: Scheduled extraction of token usage from local log files
+- **Email Reports**: Daily usage reports sent via email
 
 ### Project Structure
 
@@ -194,7 +217,11 @@ python3 cli.py summary
 python3 web.py
 ```
 
-Visit http://localhost:5000 to view the visualization.
+Visit http://localhost:5001 to view the visualization.
+
+**Web Interface Features:**
+- **Summary Page**: View usage summaries and trend charts for each tool
+- **Messages Page**: View individual message details (filter by date, tool, role, and search term)
 
 #### Email Reports
 
@@ -208,6 +235,21 @@ python3 cli.py report
 - `GET /api/today` - Get today's usage
 - `GET /api/<tool_name>/<days>` - Get usage for a tool over N days
 - `GET /api/date/<date>` - Get usage for a specific date
+- `GET /api/messages` - Get messages list (with filters)
+
+### Messages API
+
+```
+GET /api/messages?date=2025-03-01&tool=claude&roles=user,assistant&search=test&page=1&limit=50
+```
+
+Parameters:
+- `date` - Date in YYYY-MM-DD format
+- `tool` - Tool name (claude, qwen, openclaw)
+- `roles` - Role filters (user, assistant, system), comma-separated
+- `search` - Search term for content
+- `page` - Page number (default 1)
+- `limit` - Items per page (default 50)
 
 ### Cron Automation
 
