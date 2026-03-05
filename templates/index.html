@@ -246,6 +246,18 @@
             max-width: 100%; /* Ensure content doesn't exceed container */
         }
 
+        .message-sender {
+            font-size: 0.75rem;
+            color: #6c757d;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .message-sender i {
+            font-size: 0.7rem;
+        }
+
         .message-content-truncated {
             color: #495057;
             font-size: 0.9rem;
@@ -1451,27 +1463,35 @@
                 const role = msg.role || 'system';
                 const timestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleString() : t('unknown');
                 const tokens = msg.tokens_used || 0;
+                const tool = msg.tool_name || '';
+
+                // Get sender info for user messages (especially for OpenClaw)
+                let senderDisplayName = '';
+                if (role === 'user' && msg.sender_name) {
+                    // Use sender_name if available
+                    senderDisplayName = msg.sender_name;
+                } else if (role === 'user' && msg.sender_id) {
+                    // Fall back to sender_id
+                    senderDisplayName = msg.sender_id;
+                }
 
                 // Get content and parse if it's JSON
                 let content = msg.content || '';
                 let contentText = '';
 
-                // For user messages, show raw content directly
+                // For user messages, show cleaned content
                 // For assistant/system messages, try to parse JSON and extract text
                 if (role === 'user' || role === 'system') {
-                    // Show raw content for user/system messages
                     contentText = content;
                 } else if (typeof content === 'string') {
                     try {
                         const parsed = JSON.parse(content);
                         if (Array.isArray(parsed)) {
-                            // Extract text from array of content parts for assistant messages
                             contentText = parsed.map(item => {
                                 if (typeof item === 'object') {
                                     if (item.text) return item.text;
                                     if (item.content && typeof item.content === 'string') return item.content;
                                     if (item.parts && Array.isArray(item.parts)) {
-                                        // Flatten parts
                                         return item.parts.map(p => p.text || JSON.stringify(p)).join('\n');
                                     }
                                     return JSON.stringify(item);
@@ -1494,8 +1514,6 @@
 
                 // Truncate content for display
                 const displayContent = contentText.length > 200 ? contentText.substring(0, 200) + '...' : contentText;
-
-                // Create content HTML for display
                 const contentHtml = escapeHtmlForDisplay(displayContent);
 
                 html += `
@@ -1505,6 +1523,7 @@
                                 <span class="role-badge ${role}">${role}</span>
                             </div>
                             <div class="message-content">
+                                ${senderDisplayName ? `<div class="message-sender text-muted mb-1" style="font-size: 0.75rem;"><i class="bi bi-person"></i> ${escapeHtmlForDisplay(senderDisplayName)}</div>` : ''}
                                 <div class="message-content-truncated">${contentHtml}</div>
                             </div>
                             ${tokens > 0 ? `<div class="message-tokens ms-2">

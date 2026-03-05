@@ -91,6 +91,8 @@ def init_database() -> None:
             output_tokens INTEGER DEFAULT 0,
             model TEXT,
             timestamp TEXT,
+            sender_id TEXT,
+            sender_name TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(date, tool_name, message_id, host_name)
         )
@@ -130,6 +132,22 @@ def init_database() -> None:
     if 'full_entry' not in columns:
         print("Adding full_entry column to existing database...")
         cursor.execute("ALTER TABLE daily_messages ADD COLUMN full_entry TEXT")
+        conn.commit()
+
+    # Check if sender_id column exists in daily_messages, add it if not (for old databases)
+    cursor.execute("PRAGMA table_info(daily_messages)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'sender_id' not in columns:
+        print("Adding sender_id column to existing daily_messages table...")
+        cursor.execute("ALTER TABLE daily_messages ADD COLUMN sender_id TEXT")
+        conn.commit()
+
+    # Check if sender_name column exists in daily_messages, add it if not (for old databases)
+    cursor.execute("PRAGMA table_info(daily_messages)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'sender_name' not in columns:
+        print("Adding sender_name column to existing daily_messages table...")
+        cursor.execute("ALTER TABLE daily_messages ADD COLUMN sender_name TEXT")
         conn.commit()
 
     conn.commit()
@@ -406,7 +424,9 @@ def save_message(
     model: Optional[str] = None,
     timestamp: Optional[str] = None,
     parent_id: Optional[str] = None,
-    host_name: str = 'localhost'
+    host_name: str = 'localhost',
+    sender_id: Optional[str] = None,
+    sender_name: Optional[str] = None
 ) -> bool:
     """Save an individual message to the database."""
     conn = get_connection()
@@ -414,9 +434,9 @@ def save_message(
 
     cursor.execute('''
         INSERT OR REPLACE INTO daily_messages
-        (date, tool_name, host_name, message_id, parent_id, role, content, full_entry, tokens_used, input_tokens, output_tokens, model, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (date, tool_name, host_name, message_id, parent_id, role, content, full_entry, tokens_used, input_tokens, output_tokens, model, timestamp))
+        (date, tool_name, host_name, message_id, parent_id, role, content, full_entry, tokens_used, input_tokens, output_tokens, model, timestamp, sender_id, sender_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (date, tool_name, host_name, message_id, parent_id, role, content, full_entry, tokens_used, input_tokens, output_tokens, model, timestamp, sender_id, sender_name))
 
     conn.commit()
     conn.close()
