@@ -202,6 +202,8 @@ def extract_user_message_metadata(text: str) -> Optional[dict]:
     content_lines = []
     found_actual_content = False
     skip_next_empty = False
+    has_slack_content = False  # Track if we found Slack system message content
+    slack_content_extracted = ""  # Store extracted Slack content
     
     for line in lines:
         stripped = line.strip()
@@ -219,9 +221,9 @@ def extract_user_message_metadata(text: str) -> Optional[dict]:
                     sender_name = extracted_name
                 if extracted_content:
                     # Remove user mention tags like <@U0AE9GW0KLJ>
-                    cleaned_content = re.sub(r'<@[A-Z0-9]+>', '', extracted_content).strip()
-                    content_lines.append(cleaned_content)
+                    slack_content_extracted = re.sub(r'<@[A-Z0-9]+>', '', extracted_content).strip()
                     found_actual_content = True
+                    has_slack_content = True
                     continue
         elif '[Feishu' in stripped or 'Feishu message' in stripped:
             message_source = "feishu"
@@ -241,7 +243,10 @@ def extract_user_message_metadata(text: str) -> Optional[dict]:
         if stripped.startswith('[Slack') or stripped.startswith('[Feishu'):
             continue
         if stripped.startswith('System:'):
-            # Keep System messages but mark them
+            # Skip System lines that are Slack forwarded messages (already processed)
+            if has_slack_content:
+                continue
+            # Keep other System messages but mark them
             content_lines.append(line)
             continue
         if stripped.startswith('[media attached:'):
@@ -282,6 +287,13 @@ def extract_user_message_metadata(text: str) -> Optional[dict]:
         elif not found_actual_content and stripped and not stripped.startswith('{'):
             # If we haven't found the pattern but have content, use it (after removing timestamp)
             content_lines.append(stripped)
+    
+    # If we found Slack content, use only that content (don't include metadata)
+    if has_slack_content and slack_content_extracted:
+        content_lines = [slack_content_extracted]
+        cleaned_content = slack_content_extracted
+    elif content_lines:
+        cleaned_content = '\n'.join(content_lines).strip()
     
     if content_lines:
         cleaned_content = '\n'.join(content_lines).strip()
