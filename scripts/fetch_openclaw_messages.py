@@ -15,6 +15,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
 
+# Import feishu_user_cache module for user name lookup
+script_dir = os.path.dirname(os.path.abspath(__file__))
+shared_dir = os.path.join(script_dir, 'shared')
+if shared_dir not in sys.path:
+    sys.path.insert(0, shared_dir)
+import feishu_user_cache
+
 
 def parse_timestamp(ts_str: str) -> str:
     """Extract date from ISO timestamp."""
@@ -389,6 +396,22 @@ def process_jsonl_file(filepath: Path, hostname: str = 'localhost') -> Dict[str,
                             sender_id = result[1] if result else None
                             sender_name = result[2] if result else None
                             message_source = result[3] if result else "openclaw"
+                            
+                            # Try to get Feishu user name if not already found
+                            if message_source == "feishu" and sender_id and (not sender_name or sender_name == sender_id):
+                                # Try to get user name from cache first
+                                cached_name = feishu_user_cache.get_user_name_from_cache(sender_id)
+                                if cached_name:
+                                    sender_name = cached_name
+                                else:
+                                    # Try to fetch from API if config is available
+                                    feishu_config = utils.load_config().get('tools', {}).get('openclaw', {})
+                                    app_id = feishu_config.get('feishu_app_id')
+                                    app_secret = feishu_config.get('feishu_app_secret')
+                                    if app_id and app_secret:
+                                        api_name = feishu_user_cache.get_user_name(sender_id, app_id, app_secret)
+                                        if api_name:
+                                            sender_name = api_name
 
                             # Get token counts
                             input_tokens = tokens.get("input_tokens", 0)
