@@ -138,7 +138,7 @@ def extract_content_from_entry(entry: dict) -> Optional[str]:
     return None
 
 
-def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
+def process_jsonl_file(filepath: Path, hostname: str = 'localhost') -> Dict[str, dict]:
     """Process a single JSONL file and return daily token aggregates."""
     daily = defaultdict(lambda: {
         "prompt_tokens": 0,
@@ -202,6 +202,7 @@ def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
                             db.save_message(
                                 date=date_key,
                                 tool_name="qwen",
+                                host_name=hostname,
                                 message_id=message_id,
                                 parent_id=entry.get("parent_id"),
                                 role=role,
@@ -297,17 +298,29 @@ def find_qwen_project_dir() -> Optional[Path]:
     return None
 
 
-def fetch_and_save(days: int = 7, project_dir: Optional[Path] = None) -> bool:
+def fetch_and_save(days: int = 7, project_dir: Optional[Path] = None, hostname: Optional[str] = None) -> bool:
     """
     Fetch Qwen usage and save to database.
 
     Args:
         days: Number of days to look back
         project_dir: Optional specific project directory
+        hostname: Optional host name to identify this machine
 
     Returns:
         True if successful, False otherwise
     """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    shared_dir = os.path.join(script_dir, 'shared')
+    if shared_dir not in sys.path:
+        sys.path.insert(0, script_dir)
+    from shared import db, utils
+
+    if hostname is None:
+        # Try to load hostname from config
+        config = utils.load_config()
+        hostname = config.get('host_name', 'localhost')
+
     if project_dir is None:
         project_dir = find_qwen_project_dir()
 
@@ -361,7 +374,7 @@ def fetch_and_save(days: int = 7, project_dir: Optional[Path] = None) -> bool:
             continue
         print(f"Scanning: {proj_dir.name}")
         for f in jsonl_files:
-            daily = process_jsonl_file(f)
+            daily = process_jsonl_file(f, hostname)
             for date, stats in daily.items():
                 for key in ["prompt_tokens", "candidates_tokens", "thoughts_tokens", "cached_tokens", "total_tokens", "request_count"]:
                     aggregated[date][key] += stats[key]
@@ -379,6 +392,7 @@ def fetch_and_save(days: int = 7, project_dir: Optional[Path] = None) -> bool:
             if db.save_usage(
                 date=date,
                 tool_name="qwen",
+                host_name=hostname,
                 tokens_used=total,
                 input_tokens=stats["prompt_tokens"],
                 output_tokens=stats["candidates_tokens"],
@@ -397,8 +411,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Fetch Qwen token usage')
     parser.add_argument('--days', type=int, default=7, help='Number of days')
     parser.add_argument('--project', help='Specific project directory')
+    parser.add_argument('--hostname', help='Host name to identify this machine')
     args = parser.parse_args()
 
     db.init_database()
-    success = fetch_and_save(days=args.days, project_dir=Path(args.project) if args.project else None)
+    success = fetch_and_save(days=args.days, project_dir=Path(args.project) if args.project else None, hostname=args.hostname)
     sys.exit(0 if success else 1)

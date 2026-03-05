@@ -381,6 +381,20 @@
 
         <!-- Dashboard Section -->
         <div id="dashboard-section" class="content-section">
+            <!-- Dashboard Filters -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="d-flex flex-wrap gap-3 align-items-center">
+                        <div>
+                            <label class="form-label mb-1"><span id="dashboard-filter-host-label">Host</span></label>
+                            <select class="form-select form-select-sm" id="dashboard-host-filter" onchange="loadDashboardWithFilters()">
+                                <option value=""><span id="dashboard-filter-all-hosts">All Hosts</span></option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Today's Usage Cards -->
             <h3 class="mb-4"><span id="dashboard-today-usage">Today's Usage</span> (<span id="today-date">{{today}}</span>)</h3>
             <div class="row" id="today-cards">
@@ -443,13 +457,21 @@
             <div class="message-filters">
                 <div class="row g-3">
                     <!-- Date Filter -->
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label"><span id="filter-date-label">Date</span></label>
                         <input type="date" class="form-control" id="date-filter" value="{{today}}" onchange="loadMessages()">
                     </div>
 
+                    <!-- Host Filter -->
+                    <div class="col-md-2">
+                        <label class="form-label"><span id="filter-host-label">Host</span></label>
+                        <select class="form-select" id="host-filter" onchange="loadMessages()">
+                            <option value=""><span id="filter-all-hosts">All Hosts</span></option>
+                        </select>
+                    </div>
+
                     <!-- Tool Filter -->
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label"><span id="filter-tool-label">Tool</span></label>
                         <select class="form-select" id="tool-filter" onchange="loadMessages()">
                             <option value=""><span id="filter-all-tools">All Tools</span></option>
@@ -534,6 +556,7 @@
                 noData: 'No data available for today',
                 searchPlaceholder: 'Search messages...',
                 allTools: 'All Tools',
+                allHosts: 'All Hosts',
                 openclaw: 'Openclaw',
                 claude: 'Claude',
                 qwen: 'Qwen',
@@ -609,7 +632,17 @@
                 tableInput: 'Input',
                 tableOutput: 'Output',
                 tableTotal: 'Total',
-                noDataAvailable: '-'
+                noDataAvailable: '-',
+                hostFilter: 'Host',
+                allHosts: 'All Hosts',
+                dashboardFilterHostLabel: 'Host',
+                dashboardFilterToolLabel: 'Tool',
+                dashboardFilterAllHosts: 'All Hosts',
+                dashboardFilterAllTools: 'All Tools',
+                dashboardFilterClaude: 'Claude',
+                dashboardFilterOpenclaw: 'Openclaw',
+                dashboardFilterQwen: 'Qwen',
+                dashboardFilterRefresh: 'Refresh'
             },
             zh: {
                 sidebarTitle: 'AI Token Analyzer',
@@ -624,6 +657,7 @@
                 noData: '今天没有可用数据',
                 searchPlaceholder: '搜索消息...',
                 allTools: '全部工具',
+                allHosts: '全部主机',
                 openclaw: 'Openclaw',
                 claude: 'Claude',
                 qwen: 'Qwen',
@@ -699,7 +733,17 @@
                 chartRequests: '请求',
                 errorLoadingData: '加载数据出错',
                 dataNotAvailable: '没有可用数据',
-                chartJsLoading: 'Chart.js 加载中...'
+                chartJsLoading: 'Chart.js 加载中...',
+                hostFilter: '主机',
+                allHosts: '全部主机',
+                dashboardFilterHostLabel: '主机',
+                dashboardFilterToolLabel: '工具',
+                dashboardFilterAllHosts: '全部主机',
+                dashboardFilterAllTools: '全部工具',
+                dashboardFilterClaude: 'Claude',
+                dashboardFilterOpenclaw: 'Openclaw',
+                dashboardFilterQwen: 'Qwen',
+                dashboardFilterRefresh: '刷新'
             }
         };
 
@@ -730,6 +774,11 @@
             const loadingDataTodayText = document.getElementById('loading-data-today-text');
             const loadingToolsText = document.getElementById('loading-tools-text');
             const loadingDataToolsText = document.getElementById('loading-data-tools-text');
+            const dashboardHostLabel = document.getElementById('dashboard-filter-host-label');
+            const dashboardToolLabel = document.getElementById('dashboard-filter-tool-label');
+            const dashboardFilterAllHosts = document.getElementById('dashboard-filter-all-hosts');
+            const dashboardFilterAllTools = document.getElementById('dashboard-filter-all-tools');
+            const refreshBtnText = document.getElementById('refresh-btn-text');
 
             if (todayUsage) todayUsage.textContent = t('todayUsage');
             if (totalOverview) totalOverview.textContent = t('totalOverview');
@@ -740,6 +789,11 @@
             if (loadingDataTodayText) loadingDataTodayText.textContent = t('loadingData');
             if (loadingToolsText) loadingToolsText.textContent = t('loading');
             if (loadingDataToolsText) loadingDataToolsText.textContent = t('loadingData');
+            if (dashboardHostLabel) dashboardHostLabel.textContent = t('dashboardFilterHostLabel');
+            if (dashboardToolLabel) dashboardToolLabel.textContent = t('dashboardFilterToolLabel');
+            if (dashboardFilterAllHosts) dashboardFilterAllHosts.textContent = t('dashboardFilterAllHosts');
+            if (dashboardFilterAllTools) dashboardFilterAllTools.textContent = t('dashboardFilterAllTools');
+            if (refreshBtnText) refreshBtnText.textContent = t('refresh');
         }
 
         // Update sidebar text based on current language
@@ -754,10 +808,12 @@
             const autoRefreshText = document.getElementById('auto-refresh-text');
             const refreshBtnText = document.getElementById('refresh-btn-text');
             const filterDateLabel = document.getElementById('filter-date-label');
+            const filterHostLabel = document.getElementById('filter-host-label');
             const filterToolLabel = document.getElementById('filter-tool-label');
             const filterSearchLabel = document.getElementById('filter-search-label');
             const filterRoleLabel = document.getElementById('filter-role-label');
             const filterAllTools = document.getElementById('filter-all-tools');
+            const filterAllHosts = document.getElementById('filter-all-hosts');
             const filterOpenclaw = document.getElementById('filter-openclaw');
             const filterClaude = document.getElementById('filter-claude');
             const filterQwen = document.getElementById('filter-qwen');
@@ -769,10 +825,12 @@
             if (autoRefreshText) autoRefreshText.textContent = t('autoRefresh');
             if (refreshBtnText) refreshBtnText.textContent = t('refreshBtn');
             if (filterDateLabel) filterDateLabel.textContent = t('dateFilter');
+            if (filterHostLabel) filterHostLabel.textContent = t('hostFilter');
             if (filterToolLabel) filterToolLabel.textContent = t('toolFilter');
             if (filterSearchLabel) filterSearchLabel.textContent = t('searchFilter');
             if (filterRoleLabel) filterRoleLabel.textContent = t('roleLabel');
             if (filterAllTools) filterAllTools.textContent = t('allTools');
+            if (filterAllHosts) filterAllHosts.textContent = t('allHosts');
             if (filterOpenclaw) filterOpenclaw.textContent = t('openclaw');
             if (filterClaude) filterClaude.textContent = t('claude');
             if (filterQwen) filterQwen.textContent = t('qwen');
@@ -904,12 +962,18 @@
         }
 
         // Dashboard Functions
-        async function loadToday() {
+        async function loadToday(tool = null, host = null) {
             const container = document.getElementById('today-cards');
             container.innerHTML = '<div class="col-12 text-center"><div class="spinner-border" role="status"><span class="visually-hidden">' + t('loading') + '</span></div></div>';
 
             try {
-                const response = await fetch('/api/today');
+                let url = '/api/today';
+                const params = [];
+                if (tool) params.push('tool=' + encodeURIComponent(tool));
+                if (host) params.push('host=' + encodeURIComponent(host));
+                if (params.length > 0) url += '?' + params.join('&');
+
+                const response = await fetch(url);
                 const data = await response.json();
 
                 if (data.length === 0) {
@@ -1031,14 +1095,114 @@
             }
         }
 
-        async function loadSummary() {
+        async function loadTotalChart(host = null) {
+            const toolsContainer = document.getElementById('tools-info');
+            if (toolsContainer && toolsContainer.querySelector('.text-muted')) {
+                toolsContainer.innerHTML = '';
+            }
+
+            const container = document.getElementById('totalChart');
+
+            // Check if Chart.js is loaded first
+            if (typeof Chart === 'undefined') {
+                console.log('Chart.js not loaded yet');
+                setTimeout(() => loadTotalChart(host), 100);
+                return;
+            }
+
+            try {
+                // Clear cached summary data if host filter changed
+                if (host !== null) {
+                    summaryDataForChart = null;
+                }
+
+                let url = '/api/summary';
+                if (host) url += '?host=' + encodeURIComponent(host);
+
+                const response = await fetch(url);
+                summaryDataForChart = await response.json();
+
+                if (Object.keys(summaryDataForChart).length === 0) {
+                    container.parentElement.innerHTML = '<p class="text-center text-muted">' + t('dataNotAvailable') + '</p>';
+                    return;
+                }
+
+                const ctx = document.getElementById('totalChart').getContext('2d');
+                const labels = Object.keys(summaryDataForChart);
+                const dataValues = Object.values(summaryDataForChart).map(item => item.total_tokens);
+
+                const backgroundColors = labels.map(tool => toolColors[tool].background);
+                const borderColors = labels.map(tool => toolColors[tool].border);
+
+                // Destroy existing chart if it exists and is a valid Chart.js instance
+                if (window.totalChart && typeof window.totalChart.destroy === 'function') {
+                    window.totalChart.destroy();
+                }
+
+                window.totalChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: labels.map(tool => tool.toUpperCase()),
+                        datasets: [{
+                            label: t('total_tokens'),
+                            data: dataValues,
+                            backgroundColor: backgroundColors,
+                            borderColor: borderColors,
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: { display: true, text: t('dashboardTotalTokens'), font: { size: 14 } },
+                            legend: { position: 'bottom' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) label += ': ';
+                                        if (context.parsed !== null) {
+                                            label += formatTokens(context.parsed);
+                                        }
+                                        return label + ' ' + t('tokens');
+                                    },
+                                    afterBody: function(context) {
+                                        const toolName = context[0].label.toLowerCase();
+                                        const stats = summaryDataForChart[toolName];
+                                        if (stats && stats.total_requests) {
+                                            return t('tableRequests') + ': ' + stats.total_requests;
+                                        }
+                                        return '';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading total chart (summary):', error);
+                const toolsContainer = document.getElementById('tools-info');
+                if (toolsContainer) {
+                    toolsContainer.innerHTML = '<div class="col-12 text-center text-muted">' + t('errorLoadingData') + '</div>';
+                }
+            }
+        }
+
+        async function loadSummary(host = null) {
             const container = document.getElementById('tools-info');
             container.innerHTML = '<div class="col-12 text-center"><div class="spinner-border" role="status"><span class="visually-hidden">' + t('loading') + '</span></div></div>';
 
             try {
+                // Clear cached summary data if host filter changed
+                if (host !== null) {
+                    summaryDataForChart = null;
+                }
+
                 let data;
                 if (summaryDataForChart === null) {
-                    const response = await fetch('/api/summary');
+                    let url = '/api/summary';
+                    if (host) url += '?host=' + encodeURIComponent(host);
+                    const response = await fetch(url);
                     data = await response.json();
                     summaryDataForChart = data;
                 } else {
@@ -1078,7 +1242,7 @@
             }
         }
 
-        async function loadTrendChart() {
+        async function loadTrendChart(host = null) {
             const container = document.getElementById('trendChart');
 
             // Check if container exists
@@ -1100,7 +1264,10 @@
                     return;
                 }
 
-                const response = await fetch('/api/range?start=' + getDaysAgo(30) + '&end=' + getToday());
+                let url = '/api/range?start=' + getDaysAgo(30) + '&end=' + getToday();
+                if (host) url += '&host=' + encodeURIComponent(host);
+
+                const response = await fetch(url);
 
                 if (!response.ok) {
                     throw new Error('Failed to fetch trend data: ' + response.statusText);
@@ -1167,6 +1334,7 @@
         async function loadMessages() {
             const container = document.getElementById('messages-container');
             const date = document.getElementById('date-filter').value;
+            const host = document.getElementById('host-filter').value;
             const tool = document.getElementById('tool-filter').value;
             const search = document.getElementById('search-filter').value;
 
@@ -1209,7 +1377,8 @@
 
             try {
                 const rolesParam = roles.length > 0 ? roles.join(',') : '';
-                const url = `/api/messages?date=${date}&tool=${tool || ''}&roles=${rolesParam}&search=${search || ''}&page=1&limit=50`;
+                const hostParam = host || '';
+                const url = `/api/messages?date=${date}&tool=${tool || ''}&host=${hostParam}&roles=${rolesParam}&search=${search || ''}&page=1&limit=50`;
                 console.log('Loading messages from:', url);
                 const response = await fetch(url);
                 const data = await response.json();
@@ -1658,6 +1827,52 @@
             updateSidebarText();
             renderSidebarNav();
 
+            // Initialize dashboard host filter
+            const dashboardHostFilter = document.getElementById('dashboard-host-filter');
+            if (dashboardHostFilter) {
+                // Get current host from URL parameter
+                const urlParams = new URLSearchParams(window.location.search);
+                const currentHost = urlParams.get('host');
+
+                // Get available hosts from API
+                fetch('/api/hosts')
+                    .then(response => response.json())
+                    .then(hosts => {
+                        hosts.forEach(host => {
+                            const option = document.createElement('option');
+                            option.value = host;
+                            option.textContent = host;
+                            if (host === currentHost) {
+                                option.selected = true;
+                            }
+                            dashboardHostFilter.appendChild(option);
+                        });
+                    })
+                    .catch(error => console.error('Error loading dashboard hosts:', error));
+            }
+
+            // Initialize messages host filter
+            const messagesHostFilter = document.getElementById('host-filter');
+            if (messagesHostFilter) {
+                fetch('/api/hosts')
+                    .then(response => response.json())
+                    .then(hosts => {
+                        hosts.forEach(host => {
+                            const option = document.createElement('option');
+                            option.value = host;
+                            option.textContent = host;
+                            messagesHostFilter.appendChild(option);
+                        });
+                    })
+                    .catch(error => console.error('Error loading messages hosts:', error));
+            }
+
+            // Initialize dashboard tool filter
+            const dashboardToolFilter = document.getElementById('dashboard-tool-filter');
+            if (dashboardToolFilter && urlParams.has('tool')) {
+                dashboardToolFilter.value = urlParams.get('tool');
+            }
+
             loadToday();
             loadTotalChart();
             loadSummary();
@@ -1669,6 +1884,25 @@
                 switchSection('messages');
             }
         });
+
+        // Dashboard filter functions
+        function loadDashboardWithFilters() {
+            const host = document.getElementById('dashboard-host-filter')?.value || null;
+            const tool = document.getElementById('dashboard-tool-filter')?.value || null;
+            loadToday(tool, host);
+            loadTotalChart(host);
+            loadSummary(host);
+            loadTrendChart(host);
+        }
+
+        function refreshDashboard() {
+            const host = document.getElementById('dashboard-host-filter')?.value || null;
+            const tool = document.getElementById('dashboard-tool-filter')?.value || null;
+            loadToday(tool, host);
+            loadTotalChart(host);
+            loadSummary(host);
+            loadTrendChart(host);
+        }
     </script>
 </body>
 </html>

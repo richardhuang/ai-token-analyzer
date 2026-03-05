@@ -8,12 +8,32 @@ Provides database operations for the ai_token_usage project.
 import sqlite3
 import json
 import os
+import sys
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Tuple
 
+# Import shared configuration - support both relative and absolute imports
+def _get_config():
+    """Get config module, trying relative then absolute imports."""
+    try:
+        from . import config
+        return config
+    except ImportError:
+        try:
+            import config
+            return config
+        except ImportError:
+            # Try adding shared_dir to path
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            shared_dir = os.path.dirname(script_dir)
+            if shared_dir not in sys.path:
+                sys.path.insert(0, shared_dir)
+            import config
+            return config
 
-DB_DIR = os.path.expanduser("~/.ai_token_usage")
-DB_PATH = os.path.join(DB_DIR, "usage.db")
+config = _get_config()
+DB_DIR = config.DB_DIR
+DB_PATH = config.DB_PATH
 
 
 def ensure_db_dir() -> None:
@@ -36,11 +56,13 @@ def init_database() -> None:
     conn = get_connection()
     cursor = conn.cursor()
 
+    # Create daily_usage table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS daily_usage (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT NOT NULL,
             tool_name TEXT NOT NULL,
+            host_name TEXT NOT NULL DEFAULT 'localhost',
             tokens_used INTEGER DEFAULT 0,
             input_tokens INTEGER DEFAULT 0,
             output_tokens INTEGER DEFAULT 0,
@@ -48,24 +70,17 @@ def init_database() -> None:
             request_count INTEGER DEFAULT 0,
             models_used TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(date, tool_name)
+            UNIQUE(date, tool_name, host_name)
         )
     ''')
 
-    # Check if request_count column exists, add it if not (for old databases)
-    cursor.execute("PRAGMA table_info(daily_usage)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if 'request_count' not in columns:
-        print("Adding request_count column to existing database...")
-        cursor.execute("ALTER TABLE daily_usage ADD COLUMN request_count INTEGER DEFAULT 0")
-        conn.commit()
-
-    # Create daily_messages table for storing individual messages
+    # Create daily_messages table first (before checking for full_entry)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS daily_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT NOT NULL,
             tool_name TEXT NOT NULL,
+            host_name TEXT NOT NULL DEFAULT 'localhost',
             message_id TEXT NOT NULL,
             parent_id TEXT,
             role TEXT NOT NULL,
@@ -77,11 +92,39 @@ def init_database() -> None:
             model TEXT,
             timestamp TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(date, tool_name, message_id)
+            UNIQUE(date, tool_name, message_id, host_name)
         )
     ''')
 
-    # Check if full_entry column exists, add it if not (for old databases)
+    # Check if host_name column exists in daily_usage, add it if not (for old databases)
+    cursor.execute("PRAGMA table_info(daily_usage)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'host_name' not in columns:
+        print("Adding host_name column to existing daily_usage table...")
+        cursor.execute("ALTER TABLE daily_usage ADD COLUMN host_name TEXT DEFAULT 'localhost'")
+        # Update existing records with 'localhost'
+        cursor.execute("UPDATE daily_usage SET host_name = 'localhost' WHERE host_name IS NULL")
+        conn.commit()
+
+    # Check if host_name column exists in daily_messages, add it if not (for old databases)
+    cursor.execute("PRAGMA table_info(daily_messages)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'host_name' not in columns:
+        print("Adding host_name column to existing daily_messages table...")
+        cursor.execute("ALTER TABLE daily_messages ADD COLUMN host_name TEXT DEFAULT 'localhost'")
+        # Update existing records with 'localhost'
+        cursor.execute("UPDATE daily_messages SET host_name = 'localhost' WHERE host_name IS NULL")
+        conn.commit()
+
+    # Check if request_count column exists, add it if not (for old databases)
+    cursor.execute("PRAGMA table_info(daily_usage)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'request_count' not in columns:
+        print("Adding request_count column to existing database...")
+        cursor.execute("ALTER TABLE daily_usage ADD COLUMN request_count INTEGER DEFAULT 0")
+        conn.commit()
+
+    # Check if full_entry column exists in daily_messages, add it if not (for old databases)
     cursor.execute("PRAGMA table_info(daily_messages)")
     columns = [col[1] for col in cursor.fetchall()]
     if 'full_entry' not in columns:
@@ -102,7 +145,8 @@ def save_usage(
     output_tokens: int = 0,
     cache_tokens: int = 0,
     request_count: int = 0,
-    models_used: Optional[List[str]] = None
+    models_used: Optional[List[str]] = None,
+    host_name: str = 'localhost'
 ) -> bool:
     """Save or update usage data for a specific date and tool."""
     conn = get_connection()
@@ -112,32 +156,36 @@ def save_usage(
 
     cursor.execute('''
         INSERT OR REPLACE INTO daily_usage
-        (date, tool_name, tokens_used, input_tokens, output_tokens, cache_tokens, request_count, models_used)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (date, tool_name, tokens_used, input_tokens, output_tokens, cache_tokens, request_count, models_json))
+        (date, tool_name, host_name, tokens_used, input_tokens, output_tokens, cache_tokens, request_count, models_used)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (date, tool_name, host_name, tokens_used, input_tokens, output_tokens, cache_tokens, request_count, models_json))
 
     conn.commit()
     conn.close()
     return True
 
 
-def get_usage_by_date(date: str, tool_name: Optional[str] = None) -> List[Dict]:
-    """Get usage data for a specific date, optionally filtered by tool."""
+def get_usage_by_date(date: str, tool_name: Optional[str] = None, host_name: Optional[str] = None) -> List[Dict]:
+    """Get usage data for a specific date, optionally filtered by tool and host."""
     conn = get_connection()
     cursor = conn.cursor()
 
+    conditions = ['date = ?']
+    params = [date]
+
     if tool_name:
-        cursor.execute('''
-            SELECT * FROM daily_usage
-            WHERE date = ? AND tool_name = ?
-            ORDER BY date DESC
-        ''', (date, tool_name))
-    else:
-        cursor.execute('''
-            SELECT * FROM daily_usage
-            WHERE date = ?
-            ORDER BY date DESC
-        ''', (date,))
+        conditions.append('tool_name = ?')
+        params.append(tool_name)
+
+    if host_name:
+        conditions.append('host_name = ?')
+        params.append(host_name)
+
+    cursor.execute(f'''
+        SELECT * FROM daily_usage
+        WHERE {' AND '.join(conditions)}
+        ORDER BY date DESC
+    ''', params)
 
     rows = cursor.fetchall()
     conn.close()
@@ -158,7 +206,8 @@ def get_usage_by_date(date: str, tool_name: Optional[str] = None) -> List[Dict]:
 def get_usage_by_tool(
     tool_name: str,
     days: int = 7,
-    end_date: Optional[str] = None
+    end_date: Optional[str] = None,
+    host_name: Optional[str] = None
 ) -> List[Dict]:
     """Get usage data for a specific tool over a date range."""
     conn = get_connection()
@@ -172,11 +221,18 @@ def get_usage_by_tool(
         start_date = datetime.now() - timedelta(days=days-1)
     start_date = start_date.strftime("%Y-%m-%d")
 
-    cursor.execute('''
+    conditions = ['tool_name = ?', 'date >= ?', 'date <= ?']
+    params = [tool_name, start_date, end_date]
+
+    if host_name:
+        conditions.append('host_name = ?')
+        params.append(host_name)
+
+    cursor.execute(f'''
         SELECT * FROM daily_usage
-        WHERE tool_name = ? AND date >= ? AND date <= ?
+        WHERE {' AND '.join(conditions)}
         ORDER BY date DESC
-    ''', (tool_name, start_date, end_date))
+    ''', params)
 
     rows = cursor.fetchall()
     conn.close()
@@ -210,25 +266,71 @@ def get_all_tools() -> List[str]:
     return [row['tool_name'] for row in rows]
 
 
-def get_summary_by_tool() -> Dict[str, Dict]:
-    """Get summary statistics grouped by tool."""
+def get_all_hosts(active_only: bool = True) -> List[str]:
+    """Get list of all hosts in the database.
+
+    Args:
+        active_only: If True, only return hosts with data in the last 7 days
+    """
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute('''
-        SELECT
-            tool_name,
-            COUNT(*) as days_count,
-            SUM(tokens_used) as total_tokens,
-            AVG(tokens_used) as avg_tokens,
-            SUM(request_count) as total_requests,
-            AVG(request_count) as avg_requests,
-            MIN(date) as first_date,
-            MAX(date) as last_date
-        FROM daily_usage
-        GROUP BY tool_name
-        ORDER BY total_tokens DESC
-    ''')
+    if active_only:
+        cursor.execute('''
+            SELECT DISTINCT host_name FROM daily_usage
+            WHERE date >= date('now', '-7 days')
+              AND host_name != 'localhost'
+            ORDER BY host_name
+        ''')
+    else:
+        cursor.execute('''
+            SELECT DISTINCT host_name FROM daily_usage
+            WHERE host_name != 'localhost' OR host_name IS NULL
+            ORDER BY host_name
+        ''')
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [row['host_name'] for row in rows]
+
+
+def get_summary_by_tool(host_name: Optional[str] = None) -> Dict[str, Dict]:
+    """Get summary statistics grouped by tool, optionally filtered by host."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    if host_name:
+        cursor.execute('''
+            SELECT
+                tool_name,
+                COUNT(*) as days_count,
+                SUM(tokens_used) as total_tokens,
+                AVG(tokens_used) as avg_tokens,
+                SUM(request_count) as total_requests,
+                AVG(request_count) as avg_requests,
+                MIN(date) as first_date,
+                MAX(date) as last_date
+            FROM daily_usage
+            WHERE host_name = ?
+            GROUP BY tool_name
+            ORDER BY total_tokens DESC
+        ''', (host_name,))
+    else:
+        cursor.execute('''
+            SELECT
+                tool_name,
+                COUNT(*) as days_count,
+                SUM(tokens_used) as total_tokens,
+                AVG(tokens_used) as avg_tokens,
+                SUM(request_count) as total_requests,
+                AVG(request_count) as avg_requests,
+                MIN(date) as first_date,
+                MAX(date) as last_date
+            FROM daily_usage
+            GROUP BY tool_name
+            ORDER BY total_tokens DESC
+        ''')
 
     rows = cursor.fetchall()
     conn.close()
@@ -251,24 +353,29 @@ def get_summary_by_tool() -> Dict[str, Dict]:
 def get_daily_range(
     start_date: str,
     end_date: str,
-    tool_name: Optional[str] = None
+    tool_name: Optional[str] = None,
+    host_name: Optional[str] = None
 ) -> List[Dict]:
     """Get usage data within a date range."""
     conn = get_connection()
     cursor = conn.cursor()
 
+    conditions = ['date >= ?', 'date <= ?']
+    params = [start_date, end_date]
+
     if tool_name:
-        cursor.execute('''
-            SELECT * FROM daily_usage
-            WHERE date >= ? AND date <= ? AND tool_name = ?
-            ORDER BY date DESC
-        ''', (start_date, end_date, tool_name))
-    else:
-        cursor.execute('''
-            SELECT * FROM daily_usage
-            WHERE date >= ? AND date <= ?
-            ORDER BY date DESC
-        ''', (start_date, end_date))
+        conditions.append('tool_name = ?')
+        params.append(tool_name)
+
+    if host_name:
+        conditions.append('host_name = ?')
+        params.append(host_name)
+
+    cursor.execute(f'''
+        SELECT * FROM daily_usage
+        WHERE {' AND '.join(conditions)}
+        ORDER BY date DESC
+    ''', params)
 
     rows = cursor.fetchall()
     conn.close()
@@ -298,7 +405,8 @@ def save_message(
     output_tokens: int = 0,
     model: Optional[str] = None,
     timestamp: Optional[str] = None,
-    parent_id: Optional[str] = None
+    parent_id: Optional[str] = None,
+    host_name: str = 'localhost'
 ) -> bool:
     """Save an individual message to the database."""
     conn = get_connection()
@@ -306,9 +414,9 @@ def save_message(
 
     cursor.execute('''
         INSERT OR REPLACE INTO daily_messages
-        (date, tool_name, message_id, parent_id, role, content, full_entry, tokens_used, input_tokens, output_tokens, model, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (date, tool_name, message_id, parent_id, role, content, full_entry, tokens_used, input_tokens, output_tokens, model, timestamp))
+        (date, tool_name, host_name, message_id, parent_id, role, content, full_entry, tokens_used, input_tokens, output_tokens, model, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (date, tool_name, host_name, message_id, parent_id, role, content, full_entry, tokens_used, input_tokens, output_tokens, model, timestamp))
 
     conn.commit()
     conn.close()
@@ -321,7 +429,8 @@ def get_messages_by_date(
     roles: Optional[List[str]] = None,
     search: Optional[str] = None,
     page: int = 1,
-    limit: int = 50
+    limit: int = 50,
+    host_name: Optional[str] = None
 ) -> Dict:
     """Get messages for a specific date with filters.
 
@@ -332,6 +441,7 @@ def get_messages_by_date(
         search: Optional search term for message content
         page: Page number (1-indexed)
         limit: Number of results per page
+        host_name: Optional host name filter
 
     Returns:
         Dict with 'messages' (list), 'total' (int), 'page', 'limit', 'total_pages'
@@ -346,6 +456,10 @@ def get_messages_by_date(
     if tool_name:
         conditions.append('tool_name = ?')
         params.append(tool_name)
+
+    if host_name:
+        conditions.append('host_name = ?')
+        params.append(host_name)
 
     if roles:
         placeholders = ','.join(['?' for _ in roles])
@@ -398,3 +512,60 @@ def get_messages_by_date(
         'limit': limit,
         'total_pages': total_pages
     }
+
+
+def get_hosts_by_tool(tool_name: str) -> List[str]:
+    """Get list of hosts for a specific tool."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT DISTINCT host_name FROM daily_usage
+        WHERE tool_name = ?
+        ORDER BY host_name
+    ''', (tool_name,))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [row['host_name'] for row in rows]
+
+
+def format_timestamp_to_cst(timestamp_str: str) -> str:
+    """Convert UTC timestamp string to CST (Asia/Shanghai) formatted string.
+
+    Handles various timestamp formats:
+    - "2026-03-03T12:21:31.917Z" (standard ISO with Z)
+    - "2026-03-03 04:21:31.917Z" (modified format with space)
+
+    Args:
+        timestamp_str: UTC timestamp in ISO format
+
+    Returns:
+        Formatted string in CST timezone (e.g., "2026-03-03 20:21:31")
+    """
+    if not timestamp_str:
+        return ""
+
+    try:
+        # Handle modified format (space instead of T) from database
+        if " " in timestamp_str:
+            ts = timestamp_str.replace("Z", "")
+            # Remove trailing Z if present
+            dt = datetime.strptime(ts.strip(), "%Y-%m-%d %H:%M:%S.%f" if "." in ts else "%Y-%m-%d %H:%M:%S")
+        elif timestamp_str.endswith("Z"):
+            ts = timestamp_str[:-1]
+            if "." in ts:
+                dt = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S.%f")
+            else:
+                dt = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S")
+        else:
+            dt = datetime.fromisoformat(timestamp_str.replace("Z", ""))
+
+        # Convert to CST (UTC+8)
+        from datetime import timedelta
+        cst_dt = dt + timedelta(hours=8)
+
+        return cst_dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return timestamp_str

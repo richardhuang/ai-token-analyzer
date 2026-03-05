@@ -19,17 +19,20 @@ if shared_dir not in sys.path:
     sys.path.insert(0, shared_dir)
 
 from shared import db, utils, email_module
+from shared.config import CONFIG_DIR, CONFIG_PATH
 
 
-def cmd_today(tool: Optional[str] = None) -> None:
+def cmd_today(tool: Optional[str] = None, host: Optional[str] = None) -> None:
     """Show usage for today."""
     today = utils.get_today()
-    entries = db.get_usage_by_date(today, tool)
+    entries = db.get_usage_by_date(today, tool, host)
 
     if not entries:
         print(f"No usage data found for {today}")
         if tool:
             print(f"Tool: {tool}")
+        if host:
+            print(f"Host: {host}")
         return
 
     print(f"Usage for {today}")
@@ -56,17 +59,19 @@ def cmd_today(tool: Optional[str] = None) -> None:
             print(f"  Models: {', '.join(entry['models_used'])}")
 
 
-def cmd_query(date: str, tool: Optional[str] = None) -> None:
+def cmd_query(date: str, tool: Optional[str] = None, host: Optional[str] = None) -> None:
     """Query usage for a specific date."""
     parsed_date = utils.parse_date(date)
     if not parsed_date:
         print(f"Invalid date format: {date}. Use YYYY-MM-DD")
         return
 
-    entries = db.get_usage_by_date(parsed_date, tool)
+    entries = db.get_usage_by_date(parsed_date, tool, host)
 
     if not entries:
         print(f"No usage data found for {parsed_date}")
+        if host:
+            print(f"Host: {host}")
         return
 
     print(f"Usage for {parsed_date}")
@@ -87,18 +92,17 @@ def cmd_query(date: str, tool: Optional[str] = None) -> None:
 
 def cmd_top(
     tool: Optional[str] = None,
-    days: int = 7
+    days: int = 7,
+    host: Optional[str] = None
 ) -> None:
     """Show top usage for the last N days."""
-    entries = db.get_usage_by_tool(tool, days) if tool else []
-
+    entries = []
     if tool:
-        entries = db.get_usage_by_tool(tool, days)
+        entries = db.get_usage_by_tool(tool, days, host_name=host)
     else:
         all_tools = db.get_all_tools()
-        entries = []
         for t in all_tools:
-            entries.extend(db.get_usage_by_tool(t, days))
+            entries.extend(db.get_usage_by_tool(t, days, host_name=host))
 
     if not entries:
         print("No usage data found")
@@ -187,8 +191,8 @@ def cmd_config(action: str) -> None:
     import os
     import json
 
-    config_dir = os.path.expanduser("~/.ai_token_usage")
-    config_path = os.path.join(config_dir, "config.json")
+    config_dir = CONFIG_DIR
+    config_path = CONFIG_PATH
 
     if action == 'show':
         config = utils.load_config()
@@ -257,12 +261,14 @@ def cmd_config(action: str) -> None:
         os.system(f"{editor} {config_path}")
 
 
-def cmd_summary() -> None:
+def cmd_summary(host: Optional[str] = None) -> None:
     """Show a summary of all data."""
-    summary = db.get_summary_by_tool()
+    summary = db.get_summary_by_tool(host_name=host)
 
     if not summary:
         print("No usage data available")
+        if host:
+            print(f"Host: {host}")
         return
 
     print("AI Token Usage Summary")
@@ -290,23 +296,27 @@ def main():
     # today command
     today_parser = subparsers.add_parser('today', help='Show usage for today')
     today_parser.add_argument('--tool', help='Filter by tool')
+    today_parser.add_argument('--host', help='Filter by host')
 
     # query command
     query_parser = subparsers.add_parser('query', help='Query usage by date')
     query_parser.add_argument('date', help='Date in YYYY-MM-DD format')
     query_parser.add_argument('--tool', help='Filter by tool')
+    query_parser.add_argument('--host', help='Filter by host')
 
     # top command
     top_parser = subparsers.add_parser('top', help='Show top usage')
     top_parser.add_argument('--tool', help='Filter by tool')
     top_parser.add_argument('--days', type=int, default=7, help='Number of days')
+    top_parser.add_argument('--host', help='Filter by host')
 
     # report command
     report_parser = subparsers.add_parser('report', help='Generate report')
     report_parser.add_argument('type', nargs='?', default='email', choices=['email'], help='Report type (default: email)')
 
     # summary command
-    subparsers.add_parser('summary', help='Show summary')
+    summary_parser = subparsers.add_parser('summary', help='Show summary')
+    summary_parser.add_argument('--host', help='Filter by host')
 
     # config command
     config_parser = subparsers.add_parser('config', help='Configuration management')
@@ -322,15 +332,15 @@ def main():
     db.init_database()
 
     if args.command == 'today':
-        cmd_today(args.tool)
+        cmd_today(args.tool, args.host)
     elif args.command == 'query':
-        cmd_query(args.date, args.tool)
+        cmd_query(args.date, args.tool, args.host)
     elif args.command == 'top':
-        cmd_top(args.tool, args.days)
+        cmd_top(args.tool, args.days, args.host)
     elif args.command == 'report':
         cmd_report()
     elif args.command == 'summary':
-        cmd_summary()
+        cmd_summary(args.host)
     elif args.command == 'config':
         cmd_config(args.action)
 

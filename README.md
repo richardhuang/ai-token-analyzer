@@ -51,7 +51,7 @@ pip install -r requirements.txt
 python3 cli.py config init
 ```
 
-编辑配置文件 `~/.ai_token_usage/config.json`，设置：
+编辑配置文件 `~/.ai-token-analyzer/config.json`，设置：
 
 - 各 AI 工具的日志文件路径
 - 邮件服务器设置（用于每日报告）
@@ -181,7 +181,7 @@ pip install -r requirements.txt
 python3 cli.py config init
 ```
 
-Edit the config file at `~/.ai_token_usage/config.json` to configure:
+Edit the config file at `~/.ai-token-analyzer/config.json` to configure:
 
 - Log file paths for each AI tool
 - SMTP settings for email reports

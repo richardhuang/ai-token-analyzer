@@ -1,0 +1,12 @@
+[Unit]
+Description=AI Token Analyzer - OpenClaw Data Collection Timer
+Requires=fetch-openclaw.service
+
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=30s
+AccuracySec=1s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

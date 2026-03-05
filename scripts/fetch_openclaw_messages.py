@@ -149,7 +149,7 @@ def find_openclaw_sessions_dir() -> Optional[Path]:
     return None
 
 
-def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
+def process_jsonl_file(filepath: Path, hostname: str = 'localhost') -> Dict[str, dict]:
     """Process a single JSONL file and return daily token aggregates."""
     daily = defaultdict(lambda: {
         "input_tokens": 0,
@@ -219,6 +219,7 @@ def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
                             db.save_message(
                                 date=date_key,
                                 tool_name="openclaw",
+                                host_name=hostname,
                                 message_id=message_id,
                                 parent_id=parent_id,
                                 role=role,
@@ -260,19 +261,40 @@ def process_jsonl_file(filepath: Path) -> Dict[str, dict]:
     return dict(daily)
 
 
-def fetch_and_save(days: int = 7, sessions_dir: Optional[Path] = None) -> bool:
+def fetch_and_save(days: int = 7, sessions_dir: Optional[Path] = None, hostname: Optional[str] = None) -> bool:
     """
     Fetch OpenClaw messages and save to database.
 
     Args:
         days: Number of days to look back
         sessions_dir: Optional specific sessions directory
+        hostname: Optional host name to identify this machine
 
     Returns:
         True if successful, False otherwise
     """
     # Import db directly to avoid email module conflict
     import db
+    import os
+    import sys
+    import json
+    from datetime import datetime, timedelta
+    from collections import defaultdict
+    from pathlib import Path
+    from typing import Dict, Optional
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    shared_dir = os.path.join(script_dir, 'shared')
+    if shared_dir not in sys.path:
+        sys.path.insert(0, shared_dir)
+
+    # Import utils directly
+    import utils
+
+    if hostname is None:
+        # Try to load hostname from config
+        config = utils.load_config()
+        hostname = config.get('host_name', 'localhost')
 
     if sessions_dir is None:
         sessions_dir = find_openclaw_sessions_dir()
@@ -302,7 +324,7 @@ def fetch_and_save(days: int = 7, sessions_dir: Optional[Path] = None) -> bool:
     })
 
     for f in sorted(jsonl_files, key=lambda x: x.name):
-        daily = process_jsonl_file(f)
+        daily = process_jsonl_file(f, hostname)
         for date, stats in daily.items():
             for key in ["input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "request_count"]:
                 aggregated[date][key] += stats[key]
@@ -325,6 +347,7 @@ def fetch_and_save(days: int = 7, sessions_dir: Optional[Path] = None) -> bool:
             if db.save_usage(
                 date=date,
                 tool_name="openclaw",
+                host_name=hostname,
                 tokens_used=total,
                 input_tokens=stats["input_tokens"],
                 output_tokens=stats["output_tokens"],
@@ -351,8 +374,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Fetch OpenClaw token usage')
     parser.add_argument('--days', type=int, default=7, help='Number of days')
     parser.add_argument('--sessions-dir', help='Specific sessions directory')
+    parser.add_argument('--hostname', help='Host name to identify this machine')
     args = parser.parse_args()
 
     db.init_database()
-    success = fetch_and_save(days=args.days, sessions_dir=Path(args.sessions_dir) if args.sessions_dir else None)
+    success = fetch_and_save(days=args.days, sessions_dir=Path(args.sessions_dir) if args.sessions_dir else None, hostname=args.hostname)
     sys.exit(0 if success else 1)

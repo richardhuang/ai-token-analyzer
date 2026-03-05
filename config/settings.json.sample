@@ -1,4 +1,9 @@
 {
+  "host_name": "localhost",
+  "server": {
+    "upload_auth_key": "your_upload_auth_key_here",
+    "server_url": "http://localhost:5001"
+  },
   "email": {
     "smtp_server": "smtp.gmail.com",
     "smtp_port": 587,
@@ -12,13 +17,16 @@
     "openclaw": {
       "enabled": true,
       "token_env": "OPENCLAW_TOKEN",
-      "gateway_url": "http://127.0.0.1:18789"
+      "gateway_url": "http://127.0.0.1:18789",
+      "hostname": "localhost"
     },
     "claude": {
-      "enabled": true
+      "enabled": true,
+      "hostname": "localhost"
     },
     "qwen": {
-      "enabled": true
+      "enabled": true,
+      "hostname": "localhost"
     }
   },
   "cron": {

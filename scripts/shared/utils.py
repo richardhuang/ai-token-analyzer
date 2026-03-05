@@ -6,6 +6,30 @@ Provides utility functions for the ai_token_usage project.
 """
 
 from typing import Dict, List, Optional
+import os
+import sys
+
+# Import shared configuration - support both relative and absolute imports
+def _get_config():
+    """Get config module, trying relative then absolute imports."""
+    try:
+        from . import config
+        return config
+    except ImportError:
+        try:
+            import config
+            return config
+        except ImportError:
+            # Try adding shared_dir to path
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            shared_dir = os.path.dirname(script_dir)
+            if shared_dir not in sys.path:
+                sys.path.insert(0, shared_dir)
+            import config
+            return config
+
+config = _get_config()
+CONFIG_PATH = config.CONFIG_PATH
 
 
 def format_tokens(tokens: int) -> str:
@@ -36,14 +60,21 @@ def load_config(config_path: str = None) -> Dict:
     """Load configuration from JSON file."""
     import json
     import os
+    import platform
 
     if config_path is None:
-        config_path = os.path.expanduser("~/.ai_token_usage/config.json")
+        config_path = CONFIG_PATH
 
+    config = {}
     if os.path.exists(config_path):
         with open(config_path, 'r') as f:
-            return json.load(f)
-    return {}
+            config = json.load(f)
+
+    # If host_name is not set in config, use system hostname
+    if not config.get('host_name'):
+        config['host_name'] = platform.node()
+
+    return config
 
 
 def save_config(config: Dict, config_path: str = None) -> None:
@@ -52,7 +83,7 @@ def save_config(config: Dict, config_path: str = None) -> None:
     import os
 
     if config_path is None:
-        config_path = os.path.expanduser("~/.ai_token_usage/config.json")
+        config_path = CONFIG_PATH
 
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     with open(config_path, 'w') as f:
