@@ -197,6 +197,10 @@ def extract_user_message_metadata(text: str) -> Optional[dict]:
     except Exception:
         pass
     
+    # Detect Feishu from conversation_label or sender_id pattern (ou_ prefix)
+    if 'conversation_label' in text or (sender_id and sender_id.startswith('ou_')):
+        message_source = "feishu"
+    
     # Detect message source and extract content
     lines = text.split('\n')
     content_lines = []
@@ -204,10 +208,14 @@ def extract_user_message_metadata(text: str) -> Optional[dict]:
     skip_next_empty = False
     has_slack_content = False  # Track if we found Slack system message content
     slack_content_extracted = ""  # Store extracted Slack content
-    
+
+    # Detect Feishu from conversation_label or sender_id pattern
+    if 'conversation_label' in text or (sender_id and sender_id.startswith('ou_')):
+        message_source = "feishu"
+
     for line in lines:
         stripped = line.strip()
-        
+
         # Detect message source
         if '[Slack' in stripped or 'Slack message' in stripped or 'Slack DM' in stripped:
             message_source = "slack"
