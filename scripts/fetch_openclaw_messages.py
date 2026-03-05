@@ -159,6 +159,7 @@ def extract_user_message_metadata(text: str) -> Optional[dict]:
     - Sender (untrusted metadata)  
     - [message_id: ...]
     - Channel info from slack/feishu
+    - System: [...] Slack message in #channel from User: content
     
     This function extracts the actual user content and sender information.
     """
@@ -208,6 +209,20 @@ def extract_user_message_metadata(text: str) -> Optional[dict]:
         # Detect message source
         if '[Slack' in stripped or 'Slack message' in stripped or 'Slack DM' in stripped:
             message_source = "slack"
+            # Try to extract sender name from Slack system message
+            # Pattern: "Slack message in #channel from Name: content" or "Slack message in #channel from Name: content"
+            slack_match = re.search(r'Slack message.*?from\s+([^:]+):\s*(.+)', stripped)
+            if slack_match:
+                extracted_name = slack_match.group(1).strip()
+                extracted_content = slack_match.group(2).strip()
+                if extracted_name and not sender_name:
+                    sender_name = extracted_name
+                if extracted_content:
+                    # Remove user mention tags like <@U0AE9GW0KLJ>
+                    cleaned_content = re.sub(r'<@[A-Z0-9]+>', '', extracted_content).strip()
+                    content_lines.append(cleaned_content)
+                    found_actual_content = True
+                    continue
         elif '[Feishu' in stripped or 'Feishu message' in stripped:
             message_source = "feishu"
         
