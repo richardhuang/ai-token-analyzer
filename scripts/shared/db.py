@@ -160,6 +160,10 @@ def init_database() -> None:
         conn.commit()
 
     conn.commit()
+
+    # Initialize authentication tables
+    init_auth_database()
+
     conn.close()
     print(f"Database initialized at {DB_PATH}")
 
@@ -655,3 +659,298 @@ def format_timestamp_to_cst(timestamp_str: str) -> str:
         return cst_dt.strftime("%Y-%m-%d %H:%M:%S")
     except Exception:
         return timestamp_str
+
+
+# ==========================================
+# Authentication Functions
+# ==========================================
+
+def init_auth_database() -> None:
+    """Initialize the authentication database with required tables."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Create users table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            email TEXT,
+            role TEXT NOT NULL DEFAULT 'user',
+            quota_tokens INTEGER DEFAULT 1000000,
+            quota_requests INTEGER DEFAULT 1000,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # Create sessions table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            session_token TEXT NOT NULL UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ''')
+
+    # Create quota_usage table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS quota_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            tool_name TEXT,
+            tokens_used INTEGER DEFAULT 0,
+            requests_used INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ''')
+
+    conn.commit()
+    conn.close()
+    print("Authentication database initialized")
+
+
+def create_user(username: str, password_hash: str, email: str = None,
+                role: str = 'user', quota_tokens: int = 1000000,
+                quota_requests: int = 1000) -> bool:
+    """Create a new user."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute('''
+            INSERT INTO users (username, password_hash, email, role, quota_tokens, quota_requests)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (username, password_hash, email, role, quota_tokens, quota_requests))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
+
+def get_user_by_username(username: str) -> Optional[Dict]:
+    """Get user by username."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT * FROM users WHERE username = ?', (username,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        return dict(row)
+    return None
+
+
+def get_user_by_id(user_id: int) -> Optional[Dict]:
+    """Get user by ID."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        return dict(row)
+    return None
+
+
+def verify_password(username: str, password: str) -> Optional[Dict]:
+    """Verify user password and return user info if valid."""
+    import hashlib
+
+    user = get_user_by_username(username)
+    if not user:
+        return None
+
+    # For now, do a simple hash comparison
+    # In production, use bcrypt: bcrypt.checkpw(password.encode(), user['password_hash'])
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    if password_hash == user['password_hash']:
+        return user
+    return None
+
+
+def create_session(user_id: int, session_token: str, expires_at: datetime) -> bool:
+    """Create a new session for a user."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute('''
+            INSERT INTO sessions (user_id, session_token, expires_at)
+            VALUES (?, ?, ?)
+        ''', (user_id, session_token, expires_at))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
+
+def get_session_by_token(session_token: str) -> Optional[Dict]:
+    """Get session by token if not expired."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    cursor.execute('''
+        SELECT s.*, u.* FROM sessions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.session_token = ? AND s.expires_at > ?
+    ''', (session_token, now))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        return dict(row)
+    return None
+
+
+def delete_session(session_token: str) -> bool:
+    """Delete a session."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('DELETE FROM sessions WHERE session_token = ?', (session_token,))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_all_users() -> List[Dict]:
+    """Get all users (for admin)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT * FROM users ORDER BY created_at DESC')
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [dict(row) for row in rows]
+
+
+def update_user(user_id: int, **kwargs) -> bool:
+    """Update user information."""
+    allowed_fields = ['email', 'role', 'quota_tokens', 'quota_requests', 'is_active']
+    updates = []
+    params = []
+
+    for field, value in kwargs.items():
+        if field in allowed_fields:
+            updates.append(f'{field} = ?')
+            params.append(value)
+
+    if not updates:
+        return False
+
+    params.append(user_id)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(f'''
+        UPDATE users SET {', '.join(updates)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    ''', params)
+    conn.commit()
+    conn.close()
+    return True
+
+
+def delete_user(user_id: int) -> bool:
+    """Delete a user (admin only)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def save_quota_usage(user_id: int, date: str, tool_name: str = None,
+                     tokens_used: int = 0, requests_used: int = 0) -> bool:
+    """Save quota usage for a user."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        INSERT INTO quota_usage (user_id, date, tool_name, tokens_used, requests_used)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (user_id, date, tool_name, tokens_used, requests_used))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_quota_usage(user_id: int, start_date: str, end_date: str) -> List[Dict]:
+    """Get quota usage for a user within a date range."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT * FROM quota_usage
+        WHERE user_id = ? AND date >= ? AND date <= ?
+        ORDER BY date DESC
+    ''', (user_id, start_date, end_date))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [dict(row) for row in rows]
+
+
+def get_total_quota_usage(user_id: int, start_date: str, end_date: str) -> Dict:
+    """Get total quota usage for a user within a date range."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT
+            COALESCE(SUM(tokens_used), 0) as total_tokens,
+            COALESCE(SUM(requests_used), 0) as total_requests
+        FROM quota_usage
+        WHERE user_id = ? AND date >= ? AND date <= ?
+    ''', (user_id, start_date, end_date))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    return {
+        'total_tokens': row['total_tokens'],
+        'total_requests': row['total_requests']
+    } if row else {'total_tokens': 0, 'total_requests': 0}
+
+
+def get_quota_usage_by_tool(user_id: int, start_date: str, end_date: str) -> List[Dict]:
+    """Get quota usage grouped by tool for a user."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT
+            tool_name,
+            SUM(tokens_used) as total_tokens,
+            SUM(requests_used) as total_requests,
+            COUNT(*) as days_used
+        FROM quota_usage
+        WHERE user_id = ? AND date >= ? AND date <= ? AND tool_name IS NOT NULL
+        GROUP BY tool_name
+        ORDER BY total_tokens DESC
+    ''', (user_id, start_date, end_date))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [dict(row) for row in rows]

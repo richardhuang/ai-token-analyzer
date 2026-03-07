@@ -9,8 +9,9 @@ import os
 import sys
 import importlib.util
 import json
+import secrets
 from datetime import datetime, timedelta
-from flask import Flask, render_template, jsonify, request, send_from_directory, make_response
+from flask import Flask, render_template, jsonify, request, send_from_directory, make_response, redirect, session
 
 # Dynamically load shared modules
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -38,6 +39,31 @@ app = Flask(__name__, static_folder='static', template_folder='templates')
 @app.route('/')
 def index():
     """Render the main dashboard page."""
+    # Check authentication - check both Authorization header and cookie
+    auth_header = request.headers.get('Authorization')
+    token = None
+
+    if auth_header:
+        token = auth_header.replace('Bearer ', '')
+
+    # Also check cookie for session token
+    if not token and 'session_token' in request.cookies:
+        token = request.cookies.get('session_token')
+
+    # Check if user is authenticated via session cookie or header
+    is_authenticated = False
+    user_role = 'user'
+
+    if token:
+        session_data = db.get_session_by_token(token)
+        if session_data:
+            is_authenticated = True
+            user_role = session_data.get('role', 'user')
+
+    # If not authenticated, show login page
+    if not is_authenticated:
+        return redirect('/login')
+
     host = request.args.get('host')
     tool = request.args.get('tool')
 
@@ -53,6 +79,19 @@ def index():
     all_tools = db.get_all_tools()
 
     today = utils.get_today()
+
+    # Get user info for display
+    user_info = None
+    if token:
+        session_data = db.get_session_by_token(token)
+        if session_data:
+            user_info = {
+                'id': session_data['id'],
+                'username': session_data['username'],
+                'email': session_data.get('email'),
+                'role': session_data['role']
+            }
+
     response = make_response(render_template(
         'index.html',
         summary=summary,
@@ -60,7 +99,10 @@ def index():
         hosts=all_hosts,
         tools=all_tools,
         selected_host=host,
-        selected_tool=tool
+        selected_tool=tool,
+        user_info=user_info,
+        is_authenticated=is_authenticated,
+        is_admin=user_role == 'admin'
     ))
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
@@ -526,8 +568,441 @@ def api_messages():
     return jsonify(result)
 
 
+@app.route('/login')
+def login_page():
+    """Render login page."""
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout_page():
+    """Handle logout and redirect to login."""
+    # Clear session by deleting token
+    auth_header = request.headers.get('Authorization')
+    if auth_header:
+        token = auth_header.replace('Bearer ', '')
+        db.delete_session(token)
+
+    response = make_response(render_template('login.html'))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
+
+
+# ==========================================
+# Authentication & Admin API Routes
+# ==========================================
+
+@app.route('/api/auth/login', methods=['POST'])
+def api_login():
+    """User login endpoint."""
+    import hashlib
+    import secrets
+    from datetime import timedelta
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Missing JSON body'}), 400
+
+    username = data.get('username')
+    password = data.get('password')
+
+    if not username or not password:
+        return jsonify({'error': 'Username and password are required'}), 400
+
+    # Verify password
+    user = db.verify_password(username, password)
+
+    if not user:
+        return jsonify({'error': 'Invalid username or password'}), 401
+
+    if user.get('is_active') != 1:
+        return jsonify({'error': 'Account is not active'}), 403
+
+    # Create session token
+    session_token = secrets.token_urlsafe(32)
+
+    # Set session expiry (7 days)
+    expires_at = datetime.now() + timedelta(days=7)
+
+    # Create session
+    session_created = db.create_session(
+        user_id=user['id'],
+        session_token=session_token,
+        expires_at=expires_at
+    )
+
+    if not session_created:
+        return jsonify({'error': 'Failed to create session'}), 500
+
+    # Return user info without sensitive data
+    user_info = {
+        'id': user['id'],
+        'username': user['username'],
+        'email': user.get('email'),
+        'role': user['role'],
+        'quota_tokens': user.get('quota_tokens', 0),
+        'quota_requests': user.get('quota_requests', 0)
+    }
+
+    # Create response with cookie
+    response = jsonify({
+        'success': True,
+        'user': user_info,
+        'session_token': session_token
+    })
+
+    # Set cookie for automatic authentication on page reload
+    response.set_cookie(
+        'session_token',
+        session_token,
+        max_age=7 * 24 * 60 * 60,  # 7 days
+        httponly=True,
+        secure=False,  # Set to True in production with HTTPS
+        samesite='Lax'
+    )
+
+    return response
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def api_logout():
+    """User logout endpoint."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({'error': 'Missing Authorization header'}), 400
+
+    # Extract token from "Bearer <token>"
+    token = auth_header.replace('Bearer ', '')
+
+    # Delete session
+    db.delete_session(token)
+
+    return jsonify({'success': True})
+
+
+@app.route('/api/auth/profile', methods=['GET'])
+def api_profile():
+    """Get current user profile."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({'error': 'Missing Authorization header'}), 401
+
+    # Extract token from "Bearer <token>"
+    token = auth_header.replace('Bearer ', '')
+
+    # Get session
+    session = db.get_session_by_token(token)
+    if not session:
+        return jsonify({'error': 'Invalid or expired session'}), 401
+
+    # Return user info without sensitive data
+    user_info = {
+        'id': session['id'],
+        'username': session['username'],
+        'email': session.get('email'),
+        'role': session['role'],
+        'quota_tokens': session.get('quota_tokens', 0),
+        'quota_requests': session.get('quota_requests', 0)
+    }
+
+    return jsonify({'success': True, 'user': user_info})
+
+
+# ==========================================
+# Admin API Routes
+# ==========================================
+
+@app.route('/api/admin/users', methods=['GET'])
+def api_admin_get_users():
+    """Get all users (admin only)."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({'error': 'Missing Authorization header'}), 401
+
+    token = auth_header.replace('Bearer ', '')
+    session = db.get_session_by_token(token)
+
+    if not session:
+        return jsonify({'error': 'Invalid or expired session'}), 401
+
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+
+    users = db.get_all_users()
+    return jsonify({'success': True, 'users': users})
+
+
+@app.route('/api/admin/users', methods=['POST'])
+def api_admin_create_user():
+    """Create a new user (admin only)."""
+    import hashlib
+    import secrets
+
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({'error': 'Missing Authorization header'}), 401
+
+    token = auth_header.replace('Bearer ', '')
+    session = db.get_session_by_token(token)
+
+    if not session:
+        return jsonify({'error': 'Invalid or expired session'}), 401
+
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Missing JSON body'}), 400
+
+    username = data.get('username')
+    password = data.get('password')
+    email = data.get('email')
+    role = data.get('role', 'user')
+    quota_tokens = data.get('quota_tokens', 1000000)
+    quota_requests = data.get('quota_requests', 1000)
+
+    if not username or not password:
+        return jsonify({'error': 'Username and password are required'}), 400
+
+    # Hash password
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+
+    user_id = db.create_user(
+        username=username,
+        password_hash=password_hash,
+        email=email,
+        role=role,
+        quota_tokens=quota_tokens,
+        quota_requests=quota_requests
+    )
+
+    if user_id:
+        return jsonify({'success': True, 'message': 'User created successfully'})
+    else:
+        return jsonify({'error': 'Failed to create user (may already exist)'}), 400
+
+
+@app.route('/api/admin/users/<int:user_id>', methods=['PUT'])
+def api_admin_update_user(user_id):
+    """Update user information (admin only)."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({'error': 'Missing Authorization header'}), 401
+
+    token = auth_header.replace('Bearer ', '')
+    session = db.get_session_by_token(token)
+
+    if not session:
+        return jsonify({'error': 'Invalid or expired session'}), 401
+
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Missing JSON body'}), 400
+
+    # Check if user exists
+    user = db.get_user_by_id(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    # Update allowed fields
+    updates = {}
+    if 'email' in data:
+        updates['email'] = data['email']
+    if 'role' in data and data['role'] in ['admin', 'user']:
+        updates['role'] = data['role']
+    if 'quota_tokens' in data:
+        updates['quota_tokens'] = data['quota_tokens']
+    if 'quota_requests' in data:
+        updates['quota_requests'] = data['quota_requests']
+    if 'is_active' in data:
+        updates['is_active'] = 1 if data['is_active'] else 0
+
+    if updates:
+        db.update_user(user_id, **updates)
+        return jsonify({'success': True, 'message': 'User updated successfully'})
+    else:
+        return jsonify({'error': 'No valid fields to update'}), 400
+
+
+@app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+def api_admin_delete_user(user_id):
+    """Delete a user (admin only)."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({'error': 'Missing Authorization header'}), 401
+
+    token = auth_header.replace('Bearer ', '')
+    session = db.get_session_by_token(token)
+
+    if not session:
+        return jsonify({'error': 'Invalid or expired session'}), 401
+
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+
+    # Check if user exists
+    user = db.get_user_by_id(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    db.delete_user(user_id)
+    return jsonify({'success': True, 'message': 'User deleted successfully'})
+
+
+@app.route('/api/admin/users/<int:user_id>/quota', methods=['PUT'])
+def api_admin_set_quota(user_id):
+    """Set user quota (admin only)."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({'error': 'Missing Authorization header'}), 401
+
+    token = auth_header.replace('Bearer ', '')
+    session = db.get_session_by_token(token)
+
+    if not session:
+        return jsonify({'error': 'Invalid or expired session'}), 401
+
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+
+    # Check if user exists
+    user = db.get_user_by_id(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Missing JSON body'}), 400
+
+    quota_tokens = data.get('quota_tokens')
+    quota_requests = data.get('quota_requests')
+
+    updates = {}
+    if quota_tokens is not None:
+        updates['quota_tokens'] = quota_tokens
+    if quota_requests is not None:
+        updates['quota_requests'] = quota_requests
+
+    if updates:
+        db.update_user(user_id, **updates)
+        return jsonify({'success': True, 'message': 'Quota updated successfully'})
+    else:
+        return jsonify({'error': 'No quota values provided'}), 400
+
+
+@app.route('/api/admin/quota/usage', methods=['GET'])
+def api_admin_quota_usage():
+    """Get quota usage statistics (admin only)."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({'error': 'Missing Authorization header'}), 401
+
+    token = auth_header.replace('Bearer ', '')
+    session = db.get_session_by_token(token)
+
+    if not session:
+        return jsonify({'error': 'Invalid or expired session'}), 401
+
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+
+    start_date = request.args.get('start')
+    end_date = request.args.get('end')
+
+    if not start_date or not end_date:
+        # Default to last 7 days
+        from datetime import timedelta
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+
+    # Get total usage across all users
+    total_tokens = 0
+    total_requests = 0
+    active_users = 0
+
+    users = db.get_all_users()
+    for user in users:
+        usage = db.get_total_quota_usage(
+            user['id'],
+            start_date,
+            end_date
+        )
+        total_tokens += usage['total_tokens']
+        total_requests += usage['total_requests']
+        if usage['total_tokens'] > 0 or usage['total_requests'] > 0:
+            active_users += 1
+
+    return jsonify({
+        'success': True,
+        'total_tokens': total_tokens,
+        'total_requests': total_requests,
+        'active_users': active_users,
+        'start_date': start_date,
+        'end_date': end_date
+    })
+
+
+@app.route('/api/report/my-usage', methods=['GET'])
+def api_report_my_usage():
+    """Get current user's usage statistics."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({'error': 'Missing Authorization header'}), 401
+
+    token = auth_header.replace('Bearer ', '')
+    session = db.get_session_by_token(token)
+
+    if not session:
+        return jsonify({'error': 'Invalid or expired session'}), 401
+
+    user_id = session.get('user_id')  # Use 'user_id' instead of 'id' from joined tables
+
+    if not user_id:
+        return jsonify({'error': 'Invalid session: no user_id'}), 401
+
+    start_date = request.args.get('start')
+    end_date = request.args.get('end')
+
+    if not start_date or not end_date:
+        # Default to last 30 days
+        from datetime import timedelta
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+
+    # Get user's quota info
+    user = db.get_user_by_id(user_id)
+
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    # Get usage summary
+    usage_summary = db.get_total_quota_usage(user_id, start_date, end_date)
+    usage_by_tool = db.get_quota_usage_by_tool(user_id, start_date, end_date)
+
+    return jsonify({
+        'success': True,
+        'user': {
+            'id': user['id'],
+            'username': user['username'],
+            'quota_tokens': user['quota_tokens'],
+            'quota_requests': user['quota_requests']
+        },
+        'usage': {
+            'start_date': start_date,
+            'end_date': end_date,
+            'total_tokens': usage_summary['total_tokens'],
+            'total_requests': usage_summary['total_requests']
+        },
+        'usage_by_tool': usage_by_tool
+    })
+
+
 if __name__ == '__main__':
-    # Initialize database
+    # Initialize database (including auth tables)
     db.init_database()
 
     # Run the Flask app

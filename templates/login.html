@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Token Analyzer - Login</title>
+    <script src="/static/js/Chart.min.js"></script>
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        {
+            --primary-color: #667eea;
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --sidebar-width: 250px;
+        }
+
+        body {
+            background: var(--primary-gradient);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .login-header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .login-header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            color: #495057;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .form-group input {
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 15px;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .btn-login {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 14px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            width: 100%;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .btn-login:hover {
+            background: #5a6fd6;
+            transform: translateY(-2px);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .form-footer {
+            margin-top: 25px;
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .form-footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .form-footer a:hover {
+            text-decoration: underline;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .success-message.show {
+            display: block;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            animation: rotation 0.8s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .login-footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1><i class="bi bi-bar-chart-line"></i> AI Token Analyzer</h1>
+            <p>Please sign in to continue</p>
+        </div>
+
+        <div id="error-message" class="error-message"></div>
+        <div id="success-message" class="success-message"></div>
+
+        <form id="login-form">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="Enter your username" required autofocus>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter your password" required>
+            </div>
+
+            <button type="submit" class="btn-login" id="login-btn">
+                Sign In
+            </button>
+        </form>
+
+        <div class="form-footer">
+            <p>Default admin credentials: <strong>admin / admin123</strong></p>
+            <p>Change the default password after first login!</p>
+        </div>
+
+        <div class="login-footer">
+            <p>&copy; 2026 AI Token Analyzer. All rights reserved.</p>
+        </div>
+    </div>
+
+    <script src="/static/js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginForm = document.getElementById('login-form');
+            const loginBtn = document.getElementById('login-btn');
+            const errorMessage = document.getElementById('error-message');
+            const successMessage = document.getElementById('success-message');
+
+            // Check if already authenticated
+            if (Auth.isAuthenticated()) {
+                window.location.href = '/';
+                return;
+            }
+
+            loginForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+
+                // Clear messages
+                errorMessage.classList.remove('show');
+                successMessage.classList.remove('show');
+
+                // Show loading state
+                loginBtn.disabled = true;
+                loginBtn.innerHTML = '<span class="loading"></span> Signing in...';
+
+                try {
+                    console.log('Attempting login for:', username);
+                    const result = await Auth.login(username, password);
+                    console.log('Login result:', result);
+
+                    if (result.success) {
+                        console.log('Login successful, redirecting...');
+                        successMessage.textContent = 'Login successful! Redirecting...';
+                        successMessage.classList.add('show');
+
+                        // Update navigation
+                        Auth.updateNavMenu();
+
+                        // Clear form
+                        document.getElementById('password').value = '';
+
+                        // Wait a moment then redirect
+                        setTimeout(function() {
+                            console.log('Redirecting to home page...');
+                            window.location.href = '/';
+                        }, 500);
+                    } else {
+                        console.error('Login failed:', result.error);
+                        errorMessage.textContent = result.error || 'Invalid username or password';
+                        errorMessage.classList.add('show');
+                    }
+                } catch (error) {
+                    console.error('Login error:', error);
+                    errorMessage.textContent = 'An error occurred: ' + error.message;
+                    errorMessage.classList.add('show');
+                } finally {
+                    loginBtn.disabled = false;
+                    loginBtn.innerHTML = 'Sign In';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

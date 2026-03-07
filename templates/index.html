@@ -396,6 +396,22 @@
             <a href="#" class="nav-link" id="nav-messages" onclick="switchSection('messages'); return false;">
                 <i class="bi bi-chat-dots"></i> <span id="nav-messages-text">Messages</span>
             </a>
+            <!-- Analysis menu - Admin only -->
+            <a href="#" class="nav-link" id="nav-analysis" style="display: none;" onclick="switchSection('analysis'); return false;">
+                <i class="bi bi-graph-up"></i> <span id="nav-analysis-text">Analysis</span>
+            </a>
+            <!-- Management menu - Admin only -->
+            <a href="#" class="nav-link" id="nav-management" style="display: none;" onclick="switchSection('management'); return false;">
+                <i class="bi bi-gear"></i> <span id="nav-management-text">Management</span>
+            </a>
+            <!-- Workspace menu - User only -->
+            <a href="#" class="nav-link" id="nav-workspace" style="display: none;" onclick="switchSection('workspace'); return false;">
+                <i class="bi bi-window-split"></i> <span id="nav-workspace-text">Workspace</span>
+            </a>
+            <!-- Report menu -->
+            <a href="#" class="nav-link" id="nav-report" onclick="switchSection('report'); return false;">
+                <i class="bi bi-file-earmark-text"></i> <span id="nav-report-text">Report</span>
+            </a>
         </div>
         <div class="sidebar-footer">
             <button class="lang-switch" id="lang-switch-btn" onclick="switchLang(currentLang === 'en' ? 'zh' : 'en')">中文</button>
@@ -583,6 +599,139 @@
         </div>
     </div>
 
+    <!-- Analysis Section -->
+    <div id="analysis-section" class="content-section" style="display: none;">
+        <h3><i class="bi bi-graph-up"></i> <span id="analysis-title">Analysis</span></h3>
+        <div class="alert alert-info mt-3">
+            <i class="bi bi-info-circle"></i> Analysis page coming soon - AI usage trend analysis, tool comparison, user activity metrics
+        </div>
+    </div>
+
+    <!-- Management Section -->
+    <div id="management-section" class="content-section" style="display: none;">
+        <h3><i class="bi bi-gear"></i> <span id="management-title">Management</span></h3>
+        <div class="management-nav mb-3">
+            <ul class="nav nav-tabs" id="managementTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="users-tab" data-bs-toggle="tab" data-bs-target="#users-content" type="button">
+                        <i class="bi bi-people"></i> Users
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="quota-tab" data-bs-toggle="tab" data-bs-target="#quota-content" type="button">
+                        <i class="bi bi-calendar-check"></i> Quota
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security-content" type="button">
+                        <i class="bi bi-shield-lock"></i> Security
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="tab-content" id="managementTabsContent">
+            <!-- Users Tab -->
+            <div class="tab-pane fade show active" id="users-content">
+                <div class="row mb-3">
+                    <div class="col-12 d-flex justify-content-between align-items-center">
+                        <h5><i class="bi bi-people"></i> User Management</h5>
+                        <button class="btn btn-primary" id="add-user-btn">
+                            <i class="bi bi-plus-circle"></i> Add User
+                        </button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Username</th>
+                                        <th>Email</th>
+                                        <th>Role</th>
+                                        <th>Quota</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="users-table-body">
+                                    <tr><td colspan="7" class="text-center">Loading users...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quota Tab -->
+            <div class="tab-pane fade" id="quota-content">
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h5><i class="bi bi-calendar-check"></i> Quota Usage Statistics</h5>
+                        <div id="quota-usage-container" class="mt-3">
+                            <div class="text-muted">Loading quota usage...</div>
+                        </div>
+                        <div class="alert alert-info mt-3">
+                            <i class="bi bi-info-circle"></i> Quota management coming soon - Set user quotas, view detailed usage reports
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Security Tab -->
+            <div class="tab-pane fade" id="security-content">
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h5><i class="bi bi-shield-lock"></i> Security Settings</h5>
+                        <div class="alert alert-info mt-3">
+                            <i class="bi bi-info-circle"></i> Security settings coming soon - Session management, password policies, IP allowing
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Workspace Section -->
+    <div id="workspace-section" class="content-section" style="display: none;">
+        <nav class="navbar navbar-expand navbar-dark bg-primary mb-3" style="padding: 0.5rem 1rem;">
+            <div class="container-fluid">
+                <span class="navbar-brand mb-0 h1"><i class="bi bi-window-split"></i> Workspace</span>
+                <div class="d-flex align-items-center">
+                    <span class="text-white me-3"><i class="bi bi-person-circle"></i> User Workspace</span>
+                    <button class="btn btn-outline-light btn-sm" id="logout-workspace-btn">
+                        <i class="bi bi-box-arrow-right"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </nav>
+        <iframe src="/static/claude-code-webui"
+                id="workspace-frame"
+                style="width: 100%; height: calc(100vh - 160px); border: none; display: block;">
+        </iframe>
+    </div>
+
+    <!-- Report Section -->
+    <div id="report-section" class="content-section" style="display: none;">
+        <h3><i class="bi bi-file-earmark-text"></i> <span id="report-title">My Usage Report</span></h3>
+        <div class="row mt-4" id="report-summary">
+            <div class="col-12 text-center text-muted py-5">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading your usage report...</p>
+            </div>
+        </div>
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5 class="card-title">Usage by Tool</h5>
+                <canvas id="reportByToolChart"></canvas>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/js/bootstrap.bundle.min.js"></script>
     <script>
         // Language resources
@@ -690,6 +839,34 @@
                 dashboardFilterQwen: 'Qwen',
                 dashboardFilterRefresh: 'Refresh'
             },
+            workspaceText: 'Workspace',
+            reportText: 'My Usage Report',
+            analysisText: 'Analysis',
+            managementText: 'Management',
+            usersText: 'Users',
+            quotaText: 'Quota',
+            securityText: 'Security',
+            addButtonText: 'Add User',
+            editButtonText: 'Edit',
+            deleteButtonText: 'Delete',
+            saveButtonText: 'Save',
+            cancelButtonText: 'Cancel',
+            userLabel: 'User',
+            usernameLabel: 'Username',
+            emailLabel: 'Email',
+            quotaTokensLabel: 'Token Quota',
+            quotaRequestsLabel: 'Request Quota',
+            statusLabel: 'Status',
+            activeLabel: 'Active',
+            inactiveLabel: 'Inactive',
+            adminLabel: 'Admin',
+            reportTotalTokens: 'Total Tokens',
+            reportTotalRequests: 'Total Requests',
+            reportUsageByTool: 'Usage by Tool',
+            analysisComingSoon: 'Analysis page coming soon',
+            managementComingSoon: 'Quota management coming soon',
+            securityComingSoon: 'Security settings coming soon'
+            },
             zh: {
                 sidebarTitle: 'AI Token Analyzer',
                 dashboardNav: '仪表盘',
@@ -791,7 +968,34 @@
                 dashboardFilterClaude: 'Claude',
                 dashboardFilterOpenclaw: 'Openclaw',
                 dashboardFilterQwen: 'Qwen',
-                dashboardFilterRefresh: '刷新'
+                dashboardFilterRefresh: '刷新',
+                workspaceText: '工作空间',
+                reportText: '我的用量报告',
+                analysisText: '分析',
+                managementText: '管理',
+                usersText: '用户',
+                quotaText: '配额',
+                securityText: '安全',
+                addButtonText: '添加用户',
+                editButtonText: '编辑',
+                deleteButtonText: '删除',
+                saveButtonText: '保存',
+                cancelButtonText: '取消',
+                userLabel: '用户',
+                usernameLabel: '用户名',
+                emailLabel: '邮箱',
+                quotaTokensLabel: 'Token 配额',
+                quotaRequestsLabel: '请求配额',
+                statusLabel: '状态',
+                activeLabel: '激活',
+                inactiveLabel: '停用',
+                adminLabel: '管理员',
+                reportTotalTokens: '总 Token',
+                reportTotalRequests: '总请求',
+                reportUsageByTool: '按工具用量',
+                analysisComingSoon: '分析页面即将推出',
+                managementComingSoon: '配额管理即将推出',
+                securityComingSoon: '安全设置即将推出'
             }
         };
 
@@ -928,16 +1132,69 @@
         function renderSidebarNav() {
             const navDashboard = document.getElementById('nav-dashboard');
             const navMessages = document.getElementById('nav-messages');
+            const navAnalysis = document.getElementById('nav-analysis');
+            const navManagement = document.getElementById('nav-management');
+            const navWorkspace = document.getElementById('nav-workspace');
+            const navReport = document.getElementById('nav-report');
             const sidebarTitle = document.getElementById('sidebar-title');
+
             if (navDashboard) {
                 navDashboard.innerHTML = `<i class="bi bi-bar-chart-line"></i> ${t('dashboardNav')}`;
             }
             if (navMessages) {
                 navMessages.innerHTML = `<i class="bi bi-chat-dots"></i> ${t('messagesNav')}`;
             }
+            if (navAnalysis) {
+                navAnalysis.innerHTML = `<i class="bi bi-graph-up"></i> ${t('analysisText')}`;
+            }
+            if (navManagement) {
+                navManagement.innerHTML = `<i class="bi bi-gear"></i> ${t('managementText')}`;
+            }
+            if (navWorkspace) {
+                navWorkspace.innerHTML = `<i class="bi bi-window-split"></i> ${t('workspaceText')}`;
+            }
+            if (navReport) {
+                navReport.innerHTML = `<i class="bi bi-file-earmark-text"></i> ${t('reportText')}`;
+            }
             if (sidebarTitle) {
                 sidebarTitle.textContent = t('sidebarTitle');
             }
+        }
+
+        // Update analysis text based on current language
+        function updateAnalysisText() {
+            const analysisTitle = document.getElementById('analysis-title');
+            if (analysisTitle) analysisTitle.textContent = t('analysisText');
+        }
+
+        // Update management text based on current language
+        function updateManagementText() {
+            const managementTitle = document.getElementById('management-title');
+            const usersTab = document.getElementById('users-tab');
+            const quotaTab = document.getElementById('quota-tab');
+            const securityTab = document.getElementById('security-tab');
+            const add_user_btn = document.getElementById('add-user-btn');
+
+            if (managementTitle) managementTitle.textContent = t('managementText');
+            if (usersTab) usersTab.innerHTML = `<i class="bi bi-people"></i> ${t('usersText')}`;
+            if (quotaTab) quotaTab.innerHTML = `<i class="bi bi-calendar-check"></i> ${t('quotaText')}`;
+            if (securityTab) securityTab.innerHTML = `<i class="bi bi-shield-lock"></i> ${t('securityText')}`;
+            if (add_user_btn) add_user_btn.innerHTML = `<i class="bi bi-plus-circle"></i> ${t('addButtonText')}`;
+        }
+
+        // Update workspace text based on current language
+        function updateWorkspaceText() {
+            const workspaceTitle = document.getElementById('workspace-title');
+            const navWorkspaceText = document.getElementById('nav-workspace-text');
+            if (navWorkspaceText) navWorkspaceText.textContent = t('workspaceText');
+        }
+
+        // Update report text based on current language
+        function updateReportText() {
+            const reportTitle = document.getElementById('report-title');
+            const navReportText = document.getElementById('nav-report-text');
+            if (navReportText) navReportText.textContent = t('reportText');
+            if (reportTitle) reportTitle.textContent = t('reportText');
         }
 
         // Store summary data for reuse to avoid duplicate API calls
@@ -985,16 +1242,25 @@
             // Update sidebar navigation
             const navDashboard = document.getElementById('nav-dashboard');
             const navMessages = document.getElementById('nav-messages');
-            if (navDashboard) {
-                navDashboard.classList.remove('active');
-            }
-            if (navMessages) {
-                navMessages.classList.remove('active');
-            }
+            const navAnalysis = document.getElementById('nav-analysis');
+            const navManagement = document.getElementById('nav-management');
+            const navWorkspace = document.getElementById('nav-workspace');
+            const navReport = document.getElementById('nav-report');
+
+            if (navDashboard) navDashboard.classList.remove('active');
+            if (navMessages) navMessages.classList.remove('active');
+            if (navAnalysis) navAnalysis.classList.remove('active');
+            if (navManagement) navManagement.classList.remove('active');
+            if (navWorkspace) navWorkspace.classList.remove('active');
+            if (navReport) navReport.classList.remove('active');
 
             // Show/hide sections
             document.getElementById('dashboard-section').style.display = section === 'dashboard' ? 'block' : 'none';
             document.getElementById('messages-section').style.display = section === 'messages' ? 'block' : 'none';
+            document.getElementById('analysis-section').style.display = section === 'analysis' ? 'block' : 'none';
+            document.getElementById('management-section').style.display = section === 'management' ? 'block' : 'none';
+            document.getElementById('workspace-section').style.display = section === 'workspace' ? 'block' : 'none';
+            document.getElementById('report-section').style.display = section === 'report' ? 'block' : 'none';
 
             // Load data and update text if needed
             if (section === 'dashboard') {
@@ -1004,12 +1270,29 @@
                     loadTotalChart();
                     loadTrendChart();
                 }
-                // Update dashboard text based on current language
                 updateDashboardText();
             } else if (section === 'messages') {
                 if (navMessages) navMessages.classList.add('active');
                 updateMessagesText();
                 loadMessages();
+            } else if (section === 'analysis') {
+                if (navAnalysis) navAnalysis.classList.add('active');
+                updateAnalysisText();
+            } else if (section === 'management') {
+                if (navManagement) navManagement.classList.add('active');
+                updateManagementText();
+                // Load admin functions if available
+                if (typeof Admin !== 'undefined') {
+                    Admin.renderUsersTable();
+                    Admin.renderQuotaUsage();
+                }
+            } else if (section === 'workspace') {
+                if (navWorkspace) navWorkspace.classList.add('active');
+                updateWorkspaceText();
+            } else if (section === 'report') {
+                if (navReport) navReport.classList.add('active');
+                updateReportText();
+                loadMyUsageReport();
             }
         }
 
@@ -2185,8 +2468,160 @@
             // Wait for other initializations to complete
             setTimeout(function() {
                 initSearchableSelect('sender-filter');
+                checkReportPage();
             }, 100);
         });
+
+        // Check if on report page and load data
+        function checkReportPage() {
+            if (document.getElementById('report-section') && document.getElementById('report-section').style.display !== 'none') {
+                loadMyUsageReport();
+            }
+        }
+
+        // Load current user's usage report
+        async function loadMyUsageReport() {
+            const summaryContainer = document.getElementById('report-summary');
+
+            if (!summaryContainer) return;
+
+            // Check if user is authenticated
+            if (typeof Auth !== 'undefined' && !Auth.isAuthenticated()) {
+                summaryContainer.innerHTML = '<div class="col-12 text-center text-danger">Please log in to view your usage report</div>';
+                return;
+            }
+
+            summaryContainer.innerHTML = '<div class="col-12 text-center"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Loading your usage report...</p></div>';
+
+            try {
+                const response = await fetch('/api/report/my-usage', {
+                    headers: {
+                        'Authorization': 'Bearer ' + (localStorage.getItem('ai_token_session') || '')
+                    }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load usage report');
+                }
+
+                const user = data.user;
+                const usage = data.usage;
+
+                // Show user info and usage summary
+                const html = `
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title"><i class="bi bi-person-circle"></i> ${escapeHtmlForDisplay(user.username)}</h5>
+                                <p class="card-text">User ID: ${user.id}</p>
+                                <div class="row mt-3">
+                                    <div class="col-6">
+                                        <p class="card-text"><strong>${t('quotaTokensLabel') || 'Token Quota'}:</strong></p>
+                                        <h4 class="text-primary">${formatTokens(user.quota_tokens)}</h4>
+                                    </div>
+                                    <div class="col-6">
+                                        <p class="card-text"><strong>${t('quotaRequestsLabel') || 'Request Quota'}:</strong></p>
+                                        <h4 class="text-primary">${user.quota_requests.toLocaleString()}</h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title"><i class="bi bi-graph-up"></i> Usage Summary</h5>
+                                <div class="row mt-3">
+                                    <div class="col-6">
+                                        <p class="card-text"><strong>${t('reportTotalTokens')}:</strong></p>
+                                        <h4 class="text-success">${formatTokens(usage.total_tokens)}</h4>
+                                    </div>
+                                    <div class="col-6">
+                                        <p class="card-text"><strong>${t('reportTotalRequests')}:</strong></p>
+                                        <h4 class="text-info">${usage.total_requests.toLocaleString()}</h4>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <p class="card-text"><strong>${t('date_range')}:</strong> ${usage.start_date} - ${usage.end_date}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                summaryContainer.innerHTML = html;
+
+                // Load usage by tool chart
+                loadReportByToolChart(data.usage_by_tool || []);
+            } catch (error) {
+                console.error('Error loading report:', error);
+                summaryContainer.innerHTML = `<div class="col-12 text-center text-danger">Error loading report: ${escapeHtmlForDisplay(error.message)}</div>`;
+            }
+        }
+
+        // Load usage by tool chart for report page
+        let reportByToolChart = null;
+
+        function loadReportByToolChart(toolData) {
+            const ctx = document.getElementById('reportByToolChart');
+            if (!ctx) return;
+
+            // Clear previous chart
+            if (reportByToolChart) {
+                reportByToolChart.destroy();
+            }
+
+            const toolNames = toolData.map(d => d.tool_name || 'Unknown');
+            const tokenValues = toolData.map(d => d.total_tokens || 0);
+
+            reportByToolChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: toolNames,
+                    datasets: [{
+                        label: t('reportUsageByTool') || 'Usage by Tool',
+                        data: tokenValues,
+                        backgroundColor: toolNames.map(name => {
+                            if (name === 'claude') return 'rgba(75, 192, 192, 0.6)';
+                            if (name === 'qwen') return 'rgba(54, 162, 235, 0.6)';
+                            return 'rgba(255, 99, 132, 0.6)';
+                        }),
+                        borderColor: toolNames.map(name => {
+                            if (name === 'claude') return 'rgba(75, 192, 192, 1)';
+                            if (name === 'qwen') return 'rgba(54, 162, 235, 1)';
+                            return 'rgba(255, 99, 132, 1)';
+                        }),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return formatTokens(context.raw) + ' tokens';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return formatTokens(value) + 't';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
     </script>
 </body>
 </html>
